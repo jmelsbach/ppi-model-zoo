@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "ppi-model-zoo"
+version = "0.1.0"
+description = ""
+authors = ["Johannes Melsbach"]
+readme = "README.md"
+packages = [{include = "ppi_zoo"}]
+[tool.poetry.dependencies]
+python = "^3.10"
+lightning = "^2.2.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
