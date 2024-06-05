@@ -3,29 +3,51 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
+from transformers.file_utils import TensorType
 
 class GoldStandardDataset(Dataset):
 
-    def __init__(self, data_dir:str='.data/'):
+    def __init__(self, data_dir:str, tokenizer:object, max_len:int):
         self.data_dir = data_dir
         self.data = pd.read_csv(data_dir)
+        self.tokenizer = tokenizer
+        self.max_len = max_len
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         item = self.data.iloc[idx].to_dict()
-        return item
+
+        sequence_A = item['sequence_A']
+        sequence_B = item['sequence_B']
+        target = item['isInteraction']
+
+        tokens_A = self.tokenizer(sequence_A, max_length=self.max_len, add_special_tokens=True, padding="max_length",
+                            truncation=True, return_tensors=TensorType.PYTORCH)
+        tokens_B = self.tokenizer(sequence_B, max_length=self.max_len, add_special_tokens=True, padding="max_length",
+                            truncation=True, return_tensors=TensorType.PYTORCH)
+
+        tokens_A['input_ids'] = torch.as_tensor(tokens_A['input_ids'], dtype=torch.long).squeeze()
+        tokens_A['attention_mask'] = torch.as_tensor(tokens_A['attention_mask'], dtype=torch.long).squeeze()
+        tokens_A['token_type_ids'] = torch.as_tensor(tokens_A['token_type_ids'], dtype=torch.long).squeeze()
+
+        tokens_B['input_ids'] = torch.as_tensor(tokens_B['input_ids'], dtype=torch.long).squeeze()
+        tokens_B['attention_mask'] = torch.as_tensor(tokens_B['attention_mask'], dtype=torch.long).squeeze()
+        tokens_B['token_type_ids'] = torch.as_tensor(tokens_B['token_type_ids'], dtype=torch.long).squeeze()
+        return tokens_A, tokens_B, target
 
 class GoldStandardDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir:str='.data', batch_size:int= 32, num_workers:int= 4):
+    def __init__(self, data_dir:str='.data', batch_size:int= 32, num_workers:int= 4, tokenizer: object=None, max_len:int=1536):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.tokenizer = tokenizer
+        self.max_len = max_len
     
     def setup(self, stage=None):
-        dataset = GoldStandardDataset(data_dir=self.data_dir)
+        dataset = GoldStandardDataset(data_dir=self.data_dir, tokenizer=self.tokenizer, max_len=self.max_len)
         
         train_indices = dataset.data.index[dataset.data['trainTest'] == 'train'].tolist()
         val_indices = dataset.data.index[dataset.data['trainTest'] == 'test1'].tolist()
