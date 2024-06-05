@@ -9,7 +9,7 @@ from transformers import BertModel, BertConfig, BertTokenizer
 #df = pd.read_csv('../../.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv')
 
 datamodule = GoldStandardDataModule(
-    data_dir='../../../.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv', 
+    data_dir='../../.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv', 
     tokenizer=BertTokenizer.from_pretrained("Rostlab/prot_bert_bfd", do_lower_case=False)
 )
 datamodule.setup()

@@ -160,5 +160,5 @@ cython_debug/
 #.idea/
 
 #
-.data/*.csv
-.data/*.pkl
+/ppi_zoo/.data/*.csv
+/ppi_zoo/.data/*.pkl
