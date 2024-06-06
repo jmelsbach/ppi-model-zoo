@@ -4,13 +4,12 @@ version = "0.1.0"
 description = ""
 authors = ["Johannes Melsbach"]
 readme = "README.md"
-packages = [{include = "ppi_zoo"}]
+packages = [{include="ppi_zoo", from="src"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 lightning = "^2.2.4"
 pandas = "^1.1.1"
 transformers = "^4.41.2"
-
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,6 +1,7 @@
 import torch
 import pytorch_lightning as pl
 from torch import nn
+# TODO: use AutoModel
 from transformers import BertModel, BertConfig, BertTokenizer
 from collections import OrderedDict
 
@@ -17,12 +18,13 @@ class STEP(pl.LightningModule):
         self.ProtBertBFD.output = torch.nn.Linear(4096, 2)
         self.tokenizer = BertTokenizer.from_pretrained(model_name, do_lower_case=False)
 
+        # dropout
         self.classification_head = nn.Sequential(OrderedDict([
             ('l1', nn.Linear(encoder_features, int(encoder_features * 4 / 16))),
             ('l2', nn.Linear(int(encoder_features * 4 / 16), 1))
         ]))
 
-        self.loss_function = nn.BCEWithLogitsLoss()
+        self.loss_function = nn.BCEWithLogitsLoss() # vlt auch CrossEntropyLoss
         self.learning_rate = learning_rate
 
     def forward(self, input_ids, token_type_ids, attention_mask):
