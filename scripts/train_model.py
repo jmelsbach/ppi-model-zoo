@@ -12,5 +12,6 @@ datamodule = GoldStandardDataModule(
     tokenizer=BertTokenizer.from_pretrained("Rostlab/prot_bert_bfd", do_lower_case=False)
 )
 
-trainer = L.Trainer()
+trainer = L.Trainer(max_epochs=1)
 trainer.fit(step, datamodule)
+trainer.test(step, datamodule)

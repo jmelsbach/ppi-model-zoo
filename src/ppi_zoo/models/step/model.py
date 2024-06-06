@@ -60,9 +60,9 @@ class STEP(pl.LightningModule):
 
         return val_loss
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
         test_loss = self._single_step(batch)
-        self.log('test_loss', test_loss)
+        self.log(f'test_loss', test_loss)
 
         return test_loss
     
