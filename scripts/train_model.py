@@ -3,7 +3,10 @@ from ppi_zoo.datasets.GoldStandardData import GoldStandardDataModule
 from ppi_zoo.models.step.model import STEP
 from transformers import AutoTokenizer
 
-step = STEP(learning_rate=0.001)
+step = STEP(
+    learning_rate=0.001,
+    nr_frozen_epochs=2
+)
 
 datamodule = GoldStandardDataModule(
     data_dir='../.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv',
@@ -11,6 +14,6 @@ datamodule = GoldStandardDataModule(
     tokenizer=AutoTokenizer.from_pretrained("Rostlab/prot_bert_bfd", do_lower_case=False),
 )
 
-trainer = L.Trainer(max_epochs=1)
+trainer = L.Trainer(max_epochs=5)
 trainer.fit(step, datamodule)
 trainer.test(step, datamodule)

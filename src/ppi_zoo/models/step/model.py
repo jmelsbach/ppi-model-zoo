@@ -5,7 +5,7 @@ from transformers import AutoModel, AutoTokenizer
 from collections import OrderedDict
 
 class STEP(pl.LightningModule):
-    def __init__(self, learning_rate:float=0.001):
+    def __init__(self, learning_rate:float=0.001, nr_frozen_epochs:int=0):
         super().__init__()
 
         encoder_features = 1024
@@ -13,6 +13,11 @@ class STEP(pl.LightningModule):
         
         self.ProtBertBFD = AutoModel.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, do_lower_case=False)
+        self._frozen = False
+        self.nr_frozen_epochs = nr_frozen_epochs
+
+        if self.nr_frozen_epochs > 0:
+            self._freeze_encoder()
 
         self.classification_head = nn.Sequential(OrderedDict([
             ("dropout1", nn.Dropout(0.1)),
@@ -26,6 +31,24 @@ class STEP(pl.LightningModule):
         self.loss_function = nn.BCEWithLogitsLoss() # vlt auch CrossEntropyLoss
         self.learning_rate = learning_rate
 
+    def _freeze_encoder(self) -> None:
+        """ freezes the encoder layer. """
+        for param in self.ProtBertBFD.parameters():
+            param.requires_grad = False
+        self._frozen = True
+
+    def _unfreeze_encoder(self) -> None:
+        """ un-freezes the encoder layer. """
+        if not self._frozen:
+            return
+        
+        for param in self.ProtBertBFD.parameters():
+            param.requires_grad = True
+        self._frozen = False
+
+    # TODO: pool strategy
+
+    # TODO: why does this only compute the embedding
     def forward(self, input_ids, token_type_ids, attention_mask):
         word_embeddings = self.ProtBertBFD(input_ids, attention_mask)[0]
         cls_token_embeddings = word_embeddings[:, 0]
@@ -52,6 +75,10 @@ class STEP(pl.LightningModule):
         self.log('train_loss', train_loss)
 
         return train_loss
+    
+    def on_train_epoch_end(self):
+        if self.current_epoch + 1 > self.nr_frozen_epochs:
+            self._unfreeze_encoder()
 
     def validation_step(self, batch, batch_idx):
         val_loss = self._single_step(batch)
@@ -66,5 +93,6 @@ class STEP(pl.LightningModule):
         return test_loss
     
     def configure_optimizers(self):
+        # TODO: Adam vs AdamW
         return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         
