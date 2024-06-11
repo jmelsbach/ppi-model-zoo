@@ -9,7 +9,7 @@ class GoldStandardDataset(Dataset):
 
     def __init__(self, data_dir:str, tokenizer:object, max_len:int):
         self.data_dir = data_dir
-        self.data = pd.read_csv(data_dir).head(8)
+        self.data = pd.read_csv(data_dir).head(1000)
         self.tokenizer = tokenizer
         self.max_len = max_len
 

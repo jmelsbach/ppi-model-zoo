@@ -1,8 +1,7 @@
 import torch
 import pytorch_lightning as pl
 from torch import nn
-# TODO: use AutoModel
-from transformers import BertModel, BertConfig, BertTokenizer
+from transformers import AutoModel, AutoTokenizer
 from collections import OrderedDict
 
 class STEP(pl.LightningModule):
@@ -11,17 +10,17 @@ class STEP(pl.LightningModule):
 
         encoder_features = 1024
         model_name = 'Rostlab/prot_bert_bfd'
-        config = BertConfig.from_pretrained(model_name)
-        config.gradient_checkpointing = True
         
-        self.ProtBertBFD = BertModel.from_pretrained(model_name, config=config)
-        self.ProtBertBFD.output = torch.nn.Linear(4096, 2)
-        self.tokenizer = BertTokenizer.from_pretrained(model_name, do_lower_case=False)
+        self.ProtBertBFD = AutoModel.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, do_lower_case=False)
 
-        # dropout
         self.classification_head = nn.Sequential(OrderedDict([
-            ('l1', nn.Linear(encoder_features, int(encoder_features * 4 / 16))),
-            ('l2', nn.Linear(int(encoder_features * 4 / 16), 1))
+            ("dropout1", nn.Dropout(0.1)),
+            ("dense1", nn.Linear(encoder_features, int(encoder_features / 16))),
+            ("dropout2", nn.Dropout(0.2)),
+            ("dense2", nn.Linear(int(encoder_features / 16), int(encoder_features / (16*16)))),
+            ("dropout3", nn.Dropout(0.2)),
+            ("dense3", nn.Linear(int(encoder_features / (16*16)), 1)),
         ]))
 
         self.loss_function = nn.BCEWithLogitsLoss() # vlt auch CrossEntropyLoss

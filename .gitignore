@@ -164,4 +164,5 @@ cython_debug/
 .data/*.pkl
 
 # lightning logs
+/lightning_logs
 /scripts/lightning_logs
