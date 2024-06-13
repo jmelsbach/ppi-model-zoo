@@ -8,6 +8,8 @@ step = STEP(
     nr_frozen_epochs=2
 )
 
+# TODO: callbacks angucken (vlt. MetricsCallback)
+
 datamodule = GoldStandardDataModule(
     data_dir='../.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv',
     batch_size=8,

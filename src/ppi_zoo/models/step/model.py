@@ -4,8 +4,16 @@ from torch import nn
 from transformers import AutoModel, AutoTokenizer
 from collections import OrderedDict
 
+# TODO: pool strategy
+# TODO: label encoder?
+# TODO: predict methods
+# TODO: logging
+# TODO: scheduling?
+# auf jeden Fall benutzen
+# learning rate finder bestimmt max für scheduler
 
 class STEP(pl.LightningModule):
+    # TODO: explizite parameter, standardwerte die den paper entsprechen
     def __init__(self, learning_rate: float = 0.001, nr_frozen_epochs: int = 0):
         super().__init__()
 
@@ -22,7 +30,7 @@ class STEP(pl.LightningModule):
             self._freeze_encoder()
 
         self.classification_head = nn.Sequential(OrderedDict([
-            ("dropout1", nn.Dropout(0.1)),
+            ("dropout1", nn.Dropout(0.1)), # TODO: dropout rate hyperparameter
             ("dense1", nn.Linear(encoder_features, int(encoder_features / 16))),
             ("dropout2", nn.Dropout(0.2)),
             ("dense2", nn.Linear(int(encoder_features / 16),
@@ -58,6 +66,8 @@ class STEP(pl.LightningModule):
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         # TODO: Adam vs AdamW?
+        # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet
+        # TODO: weight decay und epsilon
         return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
     def forward(self, inputs_A, inputs_B) -> torch.Tensor:
@@ -94,5 +104,3 @@ class STEP(pl.LightningModule):
         for param in self.ProtBertBFD.parameters():
             param.requires_grad = True
         self._frozen = False
-
-    # TODO: pool strategy

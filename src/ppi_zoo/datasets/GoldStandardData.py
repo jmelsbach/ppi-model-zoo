@@ -48,6 +48,7 @@ class GoldStandardDataset(Dataset):
 class GoldStandardDataModule(pl.LightningDataModule):
     # TODO: hier url übergeben
     # url aus map rausnehmen für user
+    # TODO: methoden beschreibung, parameter erklären
     def __init__(self, data_dir: str = '.data', batch_size: int = 2, num_workers: int = 4, tokenizer: object = None, max_len: int = 8, train_val_split: tuple = (1.0, 0.0)):
         super().__init__()
         self.data_dir = data_dir
