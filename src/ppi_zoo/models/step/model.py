@@ -1,11 +1,12 @@
 import torch
 import pytorch_lightning as pl
-from torch import nn
+from torch import nnfrom torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoModel, AutoTokenizer
 from collections import OrderedDict
 from typing import List
 
 # TODO: scheduling?
+# TODO: add save_hyperparameters() function tom log hyperparams with lightning
 # TODO: label encoder?
 # TODO: predict methods
 # TODO: logging
@@ -15,7 +16,9 @@ from typing import List
 class STEP(pl.LightningModule):
     # TODO: explizite parameter, standardwerte die den paper entsprechen
     def __init__(self, learning_rate: float = 0.001, nr_frozen_epochs: int = 0, dropout_rate: List[float] = [0.1, 0.2, 0.2],
-                 encoder_features: int = 1024, model_name: str = 'Rostlab/prot_bert_bfd', **config):
+                 encoder_features: int = 1024, model_name: str = 'Rostlab/prot_bert_bfd', pool_cls: bool = True, pool_max: bool = True, pool_mean: bool = True, pool_mean_sqrt: bool = True, 
+                 weight_decay: float = 1e-2, adam_epsilon: float = 1e-08, warumup_steps: int = 200, encoder_learning_rate: float = 5e-06
+                ):
         """
         Possible hyperparameters:
         - learning_rate (float): learning rate for the optimizer
@@ -23,17 +26,17 @@ class STEP(pl.LightningModule):
         - dropout_rate (float): dropout probability
         - encoder_features (int): number of features the encoder outputs
         - model_name: name of the pretrained model
-        - config (dict): Additional configuration parameters:
-            - pool_cls: Applies pooling over the CLS token (representing the whole amino acid sequence) // --> Use to determine input and output dimensions of the model
-            - pool_max: Applies max pooling over the token embeddings, considering only valid tokens. // --> Use to determine input and output dimensions of the model
-            - pool_mean: Computes the mean of the token embeddings, considering only valid tokens. // --> Use to determine input and output dimensions of the model
-            - pool_mean_sqrt // --> Use to determine input and output dimensions of the model
-            - label_set?
-            - max_length?
-            - warmup_steps?
-            - encoder_learning_rate?
-            - weight_decay?
-            - adam_epsilon?
+        - pool_cls: Applies pooling over the CLS token (representing the whole amino acid sequence) // --> Use to determine input and output dimensions of the model
+        - pool_max: Applies max pooling over the token embeddings, considering only valid tokens. // --> Use to determine input and output dimensions of the model
+        - pool_mean: Computes the mean of the token embeddings, considering only valid tokens. // --> Use to determine input and output dimensions of the model
+        - pool_mean_sqrt // --> Use to determine input and output dimensions of the model
+        - label_set?
+        - max_length?
+        - warmup_steps?
+        - encoder_learning_rate?
+        - weight_decay?
+        - adam_epsilon?
+        [TODO] config parameter spaces
         """
         super().__init__()
         self.learning_rate = learning_rate
@@ -42,6 +45,14 @@ class STEP(pl.LightningModule):
         self.encoder_features = encoder_features
         self.model_name = model_name
         self.encoder_features = encoder_features
+        self.pool_cls = pool_cls
+        self.pool_max = pool_max
+        self.pool_mean = pool_mean
+        self.pool_mean_sqrt = pool_mean_sqrt
+        self.weight_decay = weight_decay
+        self.adam_epsilon = adam_epsilon
+        self.warmup_steps = warumup_steps
+        self.encoder_learning_rate = encoder_learning_rate
 
         # pre-trained model configuration, gradient_checkpoints, label_encoder and other configs??
         self.ProtBertBFD = AutoModel.from_pretrained(model_name)    # One important difference between our Bert model and the original Bert version is the way of dealing with sequences as separate documents 
@@ -58,14 +69,15 @@ class STEP(pl.LightningModule):
         
         # number of features the encoder outputs
         self.total_encoder_features = 0
-        if config['pool_cls']:
+        if self.pool_cls:
             self.total_encoder_features += encoder_features
-        if config['pool_max']:
+        if self.pool_max:
             self.total_encoder_features += encoder_features
-        if config['pool_mean']:
+        if self.pool_mean:
             self.total_encoder_features += encoder_features
-        if config['pool_mean_sqrt']:
-            self.total_encoder_features += encoder_features        
+        if self.pool_mean_sqrt:
+            self.total_encoder_features += encoder_features
+
         # classification head --> [TODO] NO ACTIVATION FUNCTIONS (check with paper!!!)
         self.classification_head = nn.Sequential(OrderedDict([
             ("dropout1", nn.Dropout(self.dropout_rate[0])), 
@@ -87,8 +99,15 @@ class STEP(pl.LightningModule):
         return train_loss
 
     def on_train_epoch_end(self) -> None:
+
         if self.current_epoch + 1 > self.nr_frozen_epochs:
             self._unfreeze_encoder()
+        
+        optimizers = self.optimizers()
+        for optidx, optimizer in enumerate(optimizers):
+            for param_group_idx, param_group in enumerate(optimizer.param_groups):
+                lr = param_group['lr']
+                print(f'lr_optimizer{opt_idx}param_group{param_group_idx}', lr)
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
         val_loss = self._single_step(batch)
@@ -101,12 +120,6 @@ class STEP(pl.LightningModule):
         self.log(f'test_loss', test_loss)
 
         return test_loss
-
-    def configure_optimizers(self) -> torch.optim.Optimizer:
-        # TODO: Adam vs AdamW?
-        # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet
-        # TODO: weight decay und epsilon
-        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
     def forward(self, inputs_A, inputs_B) -> torch.Tensor: # 
         token_embeddings_A = self._compute_embedding(inputs_A) # = torch.Size([8, 8, 1024]) -> torch.Size([num_sequences,  num_tokens_per_sequence, embedding_vectors_for_token])
@@ -208,4 +221,104 @@ class STEP(pl.LightningModule):
                 output_vectors.append(sum_embeddings / torch.sqrt(sum_mask))
 
         output_vector = torch.cat(output_vectors, 1) # shape -> torch.Size([8, 4096]) -> torch.Size([num_sequences,  3 (pool_cls, pool_max, pool_mean) * embedding_vectors_for_token])
-        return output_vector 
+        return output_vector
+
+
+    # def configure_optimizers(self) -> torch.optim.Optimizer:
+    #         # TODO: Adam vs AdamW?
+    #         # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet
+    #         # TODO: weight decay und epsilon
+    #         return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+
+    def configure_optimizers(self):
+        """
+        Confiugre the optimizers and schedulears.
+
+        It also sets different learning rates for different parameter groups. 
+        """
+        no_decay_params = ["bias", "LayerNorm.weight"]
+        optimizer_grouped_parameters = [
+            {
+                "params": [param for name, param in self.ProtBertBFD.named_parameters() if not any(ndp in name for ndp in no_decay_params)], 
+                "lr": self.encoder_learning_rate,
+            },
+            {
+                "params": [param for name, param in self.ProtBertBFD.named_parameters() if any(ndp in name for ndp in no_decay_params)],
+                "weight_decay": 0.0,
+                "lr": self.encoder_learning_rate,
+            },
+            {
+                "params": self.classification_head.parameters(),
+            },
+        ]
+
+        parameters = optimizer_grouped_parameters
+        optimizer = torch.optim.AdamW(
+            parameters,
+            lr=self.learning_rate,
+            weight_decay=self.weight_decay,
+            eps=self.adam_epsilon,
+            #betas = self.hparams.betas
+        )
+
+        scheduler = LambdaLR(optimizer, self.lr_lambda)
+        scheduler_dict = {
+            'scheduler': scheduler,
+            'interval': 'step',
+            'frequency': 1,
+            'reduce_on_plateau': False,
+            'monitor': 'val_loss',
+            'name': 'learning_rate'
+        }
+
+        return [optimizer], [scheduler_dict]
+
+    def lr_lambda(self, current_step: int) -> float:
+        """
+        Calculate learning rate for current step according to the total number of training steps
+
+        Args:
+            current_step (int): Current step number
+
+        Returns:
+            [float]: learning rate lambda (how much the rate should be changed.)
+        """
+        num_warmup_steps = self.warmup_steps
+        if current_step < num_warmup_steps:
+            return float(current_step) / float(max(1, num_warmup_steps))
+        return max(
+            0.0, float(self.num_training_steps - current_step) / float(max(1, self.num_training_steps - num_warmup_steps))
+        )
+
+    @property
+    def num_training_steps(self) -> int:
+        """Get number of training steps"""
+        if self.trainer.max_steps > -1:
+            return self.trainer.max_steps
+
+        self.trainer.fit_loop.setup_data()
+        dataset_size = len(self.trainer.train_dataloader)
+        num_steps = dataset_size * self.trainer.max_epochs
+
+        return num_steps
+
+    # @property
+    # def num_training_steps(self) -> int:
+    #     """
+    #     Total training steps inferred from datamodule and devices.
+        
+    #     https://github.com/PyTorchLightning/pytorch-lightning/issues/5449#issuecomment-774265729
+    #     """
+    #     if self.trainer.max_steps:
+    #         return self.trainer.max_steps
+
+    #     limit_batches = self.trainer.limit_train_batches
+    #     batches = len(self.train_dataloader())
+    #     batches = min(batches, limit_batches) if isinstance(limit_batches, int) else int(limit_batches * batches)
+
+    #     num_devices = max(1, self.trainer.num_gpus, self.trainer.num_processes)
+    #     if self.trainer.tpu_cores:
+    #         num_devices = max(num_devices, self.trainer.tpu_cores)
+
+    #     effective_accum = self.trainer.accumulate_grad_batches * num_devices
+    #     return (batches // effective_accum) * self.trainer.max_epochs

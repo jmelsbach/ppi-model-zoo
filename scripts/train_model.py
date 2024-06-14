@@ -13,7 +13,11 @@ step = STEP(
     pool_cls=True,
     pool_max=True,
     pool_mean=True,
-    pool_mean_sqrt=True
+    pool_mean_sqrt=True,
+    weight_decay=1e-2,
+    adam_epsilon= 1e-08,
+    warumup_steps = 1, # 200 
+    encoder_learning_rate = 5e-06
 )
 
 # TODO: callbacks angucken (vlt. MetricsCallback)
