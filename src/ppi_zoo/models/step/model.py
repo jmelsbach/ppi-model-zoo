@@ -1,29 +1,34 @@
 import torch
 import pytorch_lightning as pl
-from torch import nnfrom torch.optim.lr_scheduler import LambdaLR
-from transformers import AutoModel, AutoTokenizer
+from torch import nn
+from torch.optim.lr_scheduler import LambdaLR
+from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
 
-# TODO: scheduling?
-# TODO: add save_hyperparameters() function tom log hyperparams with lightning
-# TODO: label encoder?
-# TODO: predict methods
-# TODO: logging
-# auf jeden Fall benutzen
-# learning rate finder bestimmt max für scheduler
+# TODO: scheduling? -> Done, but test if it actually works
+# TODO: label encoder? -> low prio
+# TODO: predict methods -> low prio
+# TODO: metrics -> after merge
+# TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet -> low prio
+
+# Questions:
+# - local_logger?
+# - global_rank == 0?
+# - keine activation function im classification head?
+
 
 class STEP(pl.LightningModule):
     # TODO: explizite parameter, standardwerte die den paper entsprechen
-    def __init__(self, learning_rate: float = 0.001, nr_frozen_epochs: int = 0, dropout_rate: List[float] = [0.1, 0.2, 0.2],
-                 encoder_features: int = 1024, model_name: str = 'Rostlab/prot_bert_bfd', pool_cls: bool = True, pool_max: bool = True, pool_mean: bool = True, pool_mean_sqrt: bool = True, 
+    def __init__(self, learning_rate: float = 0.001, nr_frozen_epochs: int = 0, dropout_rates: List[float] = [0.1, 0.2, 0.2],
+                 encoder_features: int = 1024, model_name: str = 'Rostlab/prot_bert_bfd', pool_cls: bool = True, pool_max: bool = True, pool_mean: bool = True, pool_mean_sqrt: bool = True,
                  weight_decay: float = 1e-2, adam_epsilon: float = 1e-08, warumup_steps: int = 200, encoder_learning_rate: float = 5e-06
-                ):
+                 ):
         """
         Possible hyperparameters:
         - learning_rate (float): learning rate for the optimizer
         - nr_frozen_epochs (int): number of epochs the encoder should be frozen
-        - dropout_rate (float): dropout probability
+        - dropout_rates (List): dropout probability
         - encoder_features (int): number of features the encoder outputs
         - model_name: name of the pretrained model
         - pool_cls: Applies pooling over the CLS token (representing the whole amino acid sequence) // --> Use to determine input and output dimensions of the model
@@ -41,9 +46,10 @@ class STEP(pl.LightningModule):
         super().__init__()
         self.learning_rate = learning_rate
         self.nr_frozen_epochs = nr_frozen_epochs
-        self.dropout_rate = dropout_rate
+        self.dropout_rates = dropout_rates
         self.encoder_features = encoder_features
         self.model_name = model_name
+        # number of features the encoder outputs
         self.encoder_features = encoder_features
         self.pool_cls = pool_cls
         self.pool_max = pool_max
@@ -54,60 +60,28 @@ class STEP(pl.LightningModule):
         self.warmup_steps = warumup_steps
         self.encoder_learning_rate = encoder_learning_rate
 
-        # pre-trained model configuration, gradient_checkpoints, label_encoder and other configs??
-        self.ProtBertBFD = AutoModel.from_pretrained(model_name)    # One important difference between our Bert model and the original Bert version is the way of dealing with sequences as separate documents 
-                                                                    # This means the Next sentence prediction is not used, as each sequence is treated as a complete document. 
-                                                                    # The masking follows the original Bert training with randomly masks 15% of the amino acids in the input.
-                                                        
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name, do_lower_case=False)
+        self.save_hyperparameters(ignore=[])
+
+        self._build_model()
 
         if self.nr_frozen_epochs > 0:
             self._freeze_encoder()
         else:
             self._frozen = False
-        
-        # number of features the encoder outputs
-        self.total_encoder_features = 0
-        if self.pool_cls:
-            self.total_encoder_features += encoder_features
-        if self.pool_max:
-            self.total_encoder_features += encoder_features
-        if self.pool_mean:
-            self.total_encoder_features += encoder_features
-        if self.pool_mean_sqrt:
-            self.total_encoder_features += encoder_features
 
-        # classification head --> [TODO] NO ACTIVATION FUNCTIONS (check with paper!!!)
-        self.classification_head = nn.Sequential(OrderedDict([
-            ("dropout1", nn.Dropout(self.dropout_rate[0])), 
-            ("dense1", nn.Linear(self.total_encoder_features, int(self.total_encoder_features / 16))),
-            ("dropout2", nn.Dropout(self.dropout_rate[1])),
-            ("dense2", nn.Linear(int(self.total_encoder_features / 16),
-             int(self.total_encoder_features / (16*16)))),
-            ("dropout3", nn.Dropout(self.dropout_rate[2])),
-            ("dense3", nn.Linear(int(self.total_encoder_features / (16*16)), 1)),
-        ]))
-
-        self.loss_function = nn.BCEWithLogitsLoss()  # vlt auch CrossEntropyLoss
-        self.learning_rate = learning_rate
+        self.loss_function = nn.BCEWithLogitsLoss()
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         train_loss = self._single_step(batch)
         self.log('train_loss', train_loss)
+        self.log('frozen', self._frozen)
 
         return train_loss
 
     def on_train_epoch_end(self) -> None:
-
+        # TODO: STEP logs the training metrics here
         if self.current_epoch + 1 > self.nr_frozen_epochs:
             self._unfreeze_encoder()
-        
-        optimizers = self.optimizers()
-        for optidx, optimizer in enumerate(optimizers):
-            for param_group_idx, param_group in enumerate(optimizer.param_groups):
-                lr = param_group['lr']
-                print(f'lr_optimizer{opt_idx}param_group{param_group_idx}', lr)
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
         val_loss = self._single_step(batch)
@@ -121,26 +95,109 @@ class STEP(pl.LightningModule):
 
         return test_loss
 
-    def forward(self, inputs_A, inputs_B) -> torch.Tensor: # 
-        token_embeddings_A = self._compute_embedding(inputs_A) # = torch.Size([8, 8, 1024]) -> torch.Size([num_sequences,  num_tokens_per_sequence, embedding_vectors_for_token])
+    def configure_optimizers(self):
+        """
+        Confiugre the optimizers and schedulears.
+
+        It also sets different learning rates for different parameter groups. 
+        """
+        no_decay_params = ["bias", "LayerNorm.weight"]
+        optimizer_grouped_parameters = [
+            {
+                "params": [param for name, param in self.ProtBertBFD.named_parameters() if not any(ndp in name for ndp in no_decay_params)],
+                "lr": self.encoder_learning_rate,
+            },
+            {
+                "params": [param for name, param in self.ProtBertBFD.named_parameters() if any(ndp in name for ndp in no_decay_params)],
+                "weight_decay": 0.0,
+                "lr": self.encoder_learning_rate,
+            },
+            {
+                "params": self.classification_head.parameters(),
+            },
+        ]
+
+        parameters = optimizer_grouped_parameters
+        optimizer = torch.optim.AdamW(
+            parameters,
+            lr=self.learning_rate,
+            weight_decay=self.weight_decay,
+            eps=self.adam_epsilon,
+            # betas = self.hparams.betas
+        )
+
+        scheduler = LambdaLR(optimizer, self._lr_lambda)
+        scheduler_dict = {
+            'scheduler': scheduler,
+            'interval': 'step',
+            'frequency': 1,
+            'reduce_on_plateau': False,
+            'monitor': 'val_loss',
+            'name': 'learning_rate'
+        }
+
+        return [optimizer], [scheduler_dict]
+
+    def forward(self, inputs_A, inputs_B) -> torch.Tensor:
+        # = torch.Size([8, 8, 1024]) -> torch.Size([num_sequences,  num_tokens_per_sequence, embedding_vectors_for_token])
+        token_embeddings_A = self._compute_embedding(inputs_A)
         token_embeddings_B = self._compute_embedding(inputs_B)
 
-        attention_mask_A = inputs_A['attention_mask'] # attention_mask is a tensor that indicates which tokens are valid (not padding) with 1s and which are padding with 0s.
+        # attention_mask is a tensor that indicates which tokens are valid (not padding) with 1s and which are padding with 0s.
+        attention_mask_A = inputs_A['attention_mask']
         attention_mask_B = inputs_B['attention_mask']
 
         # concatenate embeddings after applying pooling strategy (_pooling())
-        embeddings_pooled_A = self._pooling(token_embeddings_A, attention_mask_A)
-        embeddings_pooled_B = self._pooling(token_embeddings_B, attention_mask_B)
+        embeddings_pooled_A = self._pooling(
+            token_embeddings_A, attention_mask_A
+        )
+        embeddings_pooled_B = self._pooling(
+            token_embeddings_B, attention_mask_B
+        )
 
         x = embeddings_pooled_A * embeddings_pooled_B
         classifier_output = self.classification_head(x)
-        return classifier_output.view(-1) # reshaping output vector to 1D tensor
+        # reshaping output vector to 1D tensor
+        return classifier_output.view(-1)
+
+    def _build_model(self) -> None:
+        # Build ProtBert Encoder
+        config = BertConfig.from_pretrained(self.model_name)
+        config.gradient_checkpointing = True
+        # pre-trained model configuration, gradient_checkpoints, label_encoder and other configs??
+        # One important difference between our Bert model and the original Bert version is the way of dealing with sequences as separate documents
+        self.ProtBertBFD = AutoModel.from_pretrained(
+            self.model_name, config=config)
+        # This means the Next sentence prediction is not used, as each sequence is treated as a complete document.
+        # The masking follows the original Bert training with randomly masks 15% of the amino acids in the input.
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_name, do_lower_case=False)
+
+        # Build classification head
+        self.total_encoder_features = sum([
+            self.encoder_features if self.pool_cls else 0,
+            self.encoder_features if self.pool_max else 0,
+            self.encoder_features if self.pool_mean else 0,
+            self.encoder_features if self.pool_mean_sqrt else 0
+        ])
+
+        self.classification_head = nn.Sequential(OrderedDict([
+            ("dropout1", nn.Dropout(self.dropout_rates[0])),
+            ("dense1", nn.Linear(self.total_encoder_features,
+             int(self.total_encoder_features / 16))),
+            ("dropout2", nn.Dropout(self.dropout_rates[1])),
+            ("dense2", nn.Linear(int(self.total_encoder_features / 16),
+             int(self.total_encoder_features / (16*16)))),
+            ("dropout3", nn.Dropout(self.dropout_rates[2])),
+            ("dense3", nn.Linear(int(self.total_encoder_features / (16*16)), 1)),
+        ]))
 
     def _compute_embedding(self, inputs) -> torch.Tensor:
-        embeddings = self.ProtBertBFD( # embeddings.shape = torch.Size([8, 8, 1024])
-            inputs['input_ids'], inputs['attention_mask'])[0] # returns the last_hidden_state of the model whereby [1] would return the pooler_output 
+        embeddings = self.ProtBertBFD(  # embeddings.shape = torch.Size([8, 8, 1024])
+            inputs['input_ids'], inputs['attention_mask'])[0]  # returns the last_hidden_state of the model whereby [1] would return the pooler_output
         return embeddings
-           # inputs['input_ids'] = tokenized sequence with shape torch.Size([8, 8]) -> 8 sequences with 8 tokens each
+        # inputs['input_ids'] = tokenized sequence with shape torch.Size([8, 8]) -> 8 sequences with 8 tokens each
         # tensor([[2, 1, 3, 0, 0, 0, 0, 0], note: 2 is the start token, 1 is the sequence token, 3 is the end token, 0 is the padding token
         # [2, 1, 3, 0, 0, 0, 0, 0],
         # [2, 1, 3, 0, 0, 0, 0, 0],
@@ -184,30 +241,35 @@ class STEP(pl.LightningModule):
     def _pooling(self, token_embeddings, attention_mask, pool_cls=True, pool_max=True, pool_mean=True, pool_mean_sqrt=True):
         """
         pool_max: Applies max pooling over the token embeddings, considering only valid tokens.
-	    pool_mean: Computes the mean of the token embeddings, considering only valid tokens.
-		pool_mean_sqrt: Computes the mean of the token embeddings, adjusted by the square root of the number of valid tokens.
+            pool_mean: Computes the mean of the token embeddings, considering only valid tokens.
+                pool_mean_sqrt: Computes the mean of the token embeddings, adjusted by the square root of the number of valid tokens.
         """
-        
-        cls_token_embeddings = token_embeddings[:, 0] # extract the embedding vector of the first token (=CLS token) which capture contextual information from the entire sequence.
 
-        ## Pooling strategy
+        # extract the embedding vector of the first token (=CLS token) which capture contextual information from the entire sequence.
+        cls_token_embeddings = token_embeddings[:, 0]
+
+        # Pooling strategy
         output_vectors = []
-        if pool_cls: # -> token_id = 2 -> Protbert(token_id) -> embedding_vector_of_token_cls (1024)
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        # -> token_id = 2 -> Protbert(token_id) -> embedding_vector_of_token_cls (1024)
+        if pool_cls:
             output_vectors.append(cls_token_embeddings)
         if pool_max:
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
             # attention_mask is a tensor that indicates which tokens are valid (not padding) with 1s and which are padding with 0s.
             # unsqueeze(-1) adds a new dimension at the end, making it compatible for broadcasting.
-	        # expand(token_embeddings.size()) expands the mask to match the size of token_embeddings.
-	        # The result is a mask with the same shape as token_embeddings but with 1s for valid tokens and 0s for padding tokens.
-            token_embeddings[input_mask_expanded == 0] = -1e9  # Set padding tokens to large negative value
+            # expand(token_embeddings.size()) expands the mask to match the size of token_embeddings.
+            # The result is a mask with the same shape as token_embeddings but with 1s for valid tokens and 0s for padding tokens.
+            # Set padding tokens to large negative value
+            token_embeddings[input_mask_expanded == 0] = -1e9
             max_over_time = torch.max(token_embeddings, 1)[0]
             output_vectors.append(max_over_time)
         if pool_mean or pool_mean_sqrt:
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-            sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
+            sum_embeddings = torch.sum(
+                token_embeddings * input_mask_expanded,
+                1
+            )
 
-            #If tokens are weighted (by WordWeights layer), feature 'token_weights_sum' will be present
+            # If tokens are weighted (by WordWeights layer), feature 'token_weights_sum' will be present
             # if 'token_weights_sum' in token_embeddings:
             #     sum_mask = token_embeddings['token_weights_sum'].unsqueeze(-1).expand(sum_embeddings.size())
             # else:
@@ -220,60 +282,11 @@ class STEP(pl.LightningModule):
             if pool_mean_sqrt:
                 output_vectors.append(sum_embeddings / torch.sqrt(sum_mask))
 
-        output_vector = torch.cat(output_vectors, 1) # shape -> torch.Size([8, 4096]) -> torch.Size([num_sequences,  3 (pool_cls, pool_max, pool_mean) * embedding_vectors_for_token])
+        # shape -> torch.Size([8, 4096]) -> torch.Size([num_sequences,  3 (pool_cls, pool_max, pool_mean) * embedding_vectors_for_token])
+        output_vector = torch.cat(output_vectors, 1)
         return output_vector
 
-
-    # def configure_optimizers(self) -> torch.optim.Optimizer:
-    #         # TODO: Adam vs AdamW?
-    #         # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet
-    #         # TODO: weight decay und epsilon
-    #         return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-
-    def configure_optimizers(self):
-        """
-        Confiugre the optimizers and schedulears.
-
-        It also sets different learning rates for different parameter groups. 
-        """
-        no_decay_params = ["bias", "LayerNorm.weight"]
-        optimizer_grouped_parameters = [
-            {
-                "params": [param for name, param in self.ProtBertBFD.named_parameters() if not any(ndp in name for ndp in no_decay_params)], 
-                "lr": self.encoder_learning_rate,
-            },
-            {
-                "params": [param for name, param in self.ProtBertBFD.named_parameters() if any(ndp in name for ndp in no_decay_params)],
-                "weight_decay": 0.0,
-                "lr": self.encoder_learning_rate,
-            },
-            {
-                "params": self.classification_head.parameters(),
-            },
-        ]
-
-        parameters = optimizer_grouped_parameters
-        optimizer = torch.optim.AdamW(
-            parameters,
-            lr=self.learning_rate,
-            weight_decay=self.weight_decay,
-            eps=self.adam_epsilon,
-            #betas = self.hparams.betas
-        )
-
-        scheduler = LambdaLR(optimizer, self.lr_lambda)
-        scheduler_dict = {
-            'scheduler': scheduler,
-            'interval': 'step',
-            'frequency': 1,
-            'reduce_on_plateau': False,
-            'monitor': 'val_loss',
-            'name': 'learning_rate'
-        }
-
-        return [optimizer], [scheduler_dict]
-
-    def lr_lambda(self, current_step: int) -> float:
+    def _lr_lambda(self, current_step: int) -> float:
         """
         Calculate learning rate for current step according to the total number of training steps
 
@@ -287,7 +300,8 @@ class STEP(pl.LightningModule):
         if current_step < num_warmup_steps:
             return float(current_step) / float(max(1, num_warmup_steps))
         return max(
-            0.0, float(self.num_training_steps - current_step) / float(max(1, self.num_training_steps - num_warmup_steps))
+            0.0, float(self.num_training_steps - current_step) /
+            float(max(1, self.num_training_steps - num_warmup_steps))
         )
 
     @property
@@ -301,24 +315,3 @@ class STEP(pl.LightningModule):
         num_steps = dataset_size * self.trainer.max_epochs
 
         return num_steps
-
-    # @property
-    # def num_training_steps(self) -> int:
-    #     """
-    #     Total training steps inferred from datamodule and devices.
-        
-    #     https://github.com/PyTorchLightning/pytorch-lightning/issues/5449#issuecomment-774265729
-    #     """
-    #     if self.trainer.max_steps:
-    #         return self.trainer.max_steps
-
-    #     limit_batches = self.trainer.limit_train_batches
-    #     batches = len(self.train_dataloader())
-    #     batches = min(batches, limit_batches) if isinstance(limit_batches, int) else int(limit_batches * batches)
-
-    #     num_devices = max(1, self.trainer.num_gpus, self.trainer.num_processes)
-    #     if self.trainer.tpu_cores:
-    #         num_devices = max(num_devices, self.trainer.tpu_cores)
-
-    #     effective_accum = self.trainer.accumulate_grad_batches * num_devices
-    #     return (batches // effective_accum) * self.trainer.max_epochs

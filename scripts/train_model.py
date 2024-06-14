@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 step = STEP(
     learning_rate=0.001,
     nr_frozen_epochs=2,
-    dropout_rate=[0.1, 0.2, 0.2],
+    dropout_rates=[0.1, 0.2, 0.2],
     encoder_features=1024,
     model_name = 'Rostlab/prot_bert_bfd',
     pool_cls=True,
@@ -16,14 +16,14 @@ step = STEP(
     pool_mean_sqrt=True,
     weight_decay=1e-2,
     adam_epsilon= 1e-08,
-    warumup_steps = 1, # 200 
+    warumup_steps = 200, # 200 
     encoder_learning_rate = 5e-06
 )
 
 # TODO: callbacks angucken (vlt. MetricsCallback)
 
 datamodule = GoldStandardDataModule(
-    data_dir='.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv',
+    data_dir='../.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv',
     batch_size=8,
     tokenizer=AutoTokenizer.from_pretrained(
         "Rostlab/prot_bert_bfd", do_lower_case=False),
