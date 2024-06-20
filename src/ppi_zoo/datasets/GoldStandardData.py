@@ -16,8 +16,9 @@ class GoldStandardDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
-
+    
     def _tokenize(self, sequence: str) -> dict:
+        sequence = " ".join(sequence) # [TODO] sequence = re.sub(r"[UZOB]", "X", sequence_Example), sequence preprocessing based on tokenizer informations to still keep Goldstandarddatset generic
         tokens = self.tokenizer(
             sequence,
             max_length=self.max_len,

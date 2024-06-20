@@ -4,9 +4,10 @@ from ppi_zoo.models.step.model import STEP
 from transformers import AutoTokenizer
 
 # TODO: lightning CLI
-
+# [TODO] add wandb_logger Trainer(logger = wandb_logger)
+# [TODO] add standard parameters from STEP Paper
 # Model initialization
-step = STEP(
+step = STEP( 
     learning_rate=0.001,
     nr_frozen_epochs=2,
     dropout_rates=[0.1, 0.2, 0.2],
@@ -25,13 +26,13 @@ step = STEP(
 # TODO: callbacks angucken (vlt. MetricsCallback)
 
 datamodule = GoldStandardDataModule(
-    data_dir='../.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv',
+    data_dir='.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv',
     batch_size=8,
     tokenizer=AutoTokenizer.from_pretrained(
         "Rostlab/prot_bert_bfd", do_lower_case=False),
-    max_len=8, # currently set to 8 because of cuda out of memory error
+    max_len=8, # currently set to 8 because of cuda out of memory error -> 1536 (STEP model)
     )
 
-trainer = L.Trainer(max_epochs=5)
+trainer = L.Trainer(max_epochs=5) # [TODO]add callbacks -> LightningMonitorCallback
 trainer.fit(step, datamodule)
 trainer.test(step, datamodule)
