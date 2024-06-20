@@ -262,6 +262,17 @@ files = [
 ]
 
 [[package]]
+name = "docstring-parser"
+version = "0.16"
+description = "Parse Python docstrings in reST, Google and Numpydoc format"
+optional = false
+python-versions = ">=3.6,<4.0"
+files = [
+    {file = "docstring_parser-0.16-py3-none-any.whl", hash = "sha256:bf0a1387354d3691d102edef7ec124f219ef639982d096e26e3b60aeffa90637"},
+    {file = "docstring_parser-0.16.tar.gz", hash = "sha256:538beabd0af1e2db0146b6bd3caa526c35a34d61af9fd2887f3a8a27a739aa6e"},
+]
+
+[[package]]
 name = "filelock"
 version = "3.14.0"
 description = "A platform independent file lock."
@@ -450,6 +461,21 @@ files = [
 ]
 
 [[package]]
+name = "importlib-resources"
+version = "6.4.0"
+description = "Read resources from Python packages"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "importlib_resources-6.4.0-py3-none-any.whl", hash = "sha256:50d10f043df931902d4194ea07ec57960f66a80449ff867bfe782b4c486ba78c"},
+    {file = "importlib_resources-6.4.0.tar.gz", hash = "sha256:cdb2b453b8046ca4e3798eb1d84f3cce1446a0e8e7b5ef4efb600f19fc398145"},
+]
+
+[package.extras]
+docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (<7.2.5)", "sphinx (>=3.5)", "sphinx-lint"]
+testing = ["jaraco.test (>=5.4)", "pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy", "pytest-ruff (>=0.2.1)", "zipp (>=3.17)"]
+
+[[package]]
 name = "intel-openmp"
 version = "2021.4.0"
 description = "Intel OpenMP* Runtime Library"
@@ -490,6 +516,42 @@ files = [
     {file = "joblib-1.4.2-py3-none-any.whl", hash = "sha256:06d478d5674cbc267e7496a410ee875abd68e4340feff4490bcb7afb88060ae6"},
     {file = "joblib-1.4.2.tar.gz", hash = "sha256:2382c5816b2636fbd20a09e0f4e9dad4736765fdfb7dca582943b9c1366b3f0e"},
 ]
+
+[[package]]
+name = "jsonargparse"
+version = "4.30.0"
+description = "Implement minimal boilerplate CLIs derived from type hints and parse from command line, config files and environment variables."
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "jsonargparse-4.30.0-py3-none-any.whl", hash = "sha256:1856c76c32bc1c94d323916ec75bb3cec49bbc2072a4e2fe9fe9ba6a7ec2343f"},
+    {file = "jsonargparse-4.30.0.tar.gz", hash = "sha256:de3502c5852546c57b9d3dac6fd2a28fe312bc70df3ea877d2435944eebeea46"},
+]
+
+[package.dependencies]
+docstring-parser = {version = ">=0.15", optional = true, markers = "extra == \"signatures\""}
+PyYAML = ">=3.13"
+typeshed-client = {version = ">=2.1.0", optional = true, markers = "extra == \"signatures\""}
+
+[package.extras]
+all = ["jsonargparse[fsspec]", "jsonargparse[jsonnet]", "jsonargparse[jsonschema]", "jsonargparse[omegaconf]", "jsonargparse[reconplogger]", "jsonargparse[ruyaml]", "jsonargparse[signatures]", "jsonargparse[typing-extensions]", "jsonargparse[urls]"]
+argcomplete = ["argcomplete (>=2.0.0)", "argcomplete (>=3.3.0)"]
+coverage = ["jsonargparse[test-no-urls]", "pytest-cov (>=4.0.0)"]
+dev = ["build (>=0.10.0)", "jsonargparse[coverage]", "jsonargparse[doc]", "jsonargparse[mypy]", "jsonargparse[test]", "pre-commit (>=2.19.0)", "tox (>=3.25.0)"]
+doc = ["Sphinx (>=1.7.9)", "autodocsumm (>=0.1.10)", "sphinx-autodoc-typehints (>=1.19.5)", "sphinx-rtd-theme (>=1.2.2)"]
+fsspec = ["fsspec (>=0.8.4)"]
+jsonnet = ["jsonnet (>=0.13.0)", "jsonnet-binary (>=0.17.0)"]
+jsonschema = ["jsonschema (>=3.2.0)"]
+maintainer = ["bump2version (>=0.5.11)", "twine (>=4.0.2)"]
+omegaconf = ["omegaconf (>=2.1.1)"]
+reconplogger = ["reconplogger (>=4.4.0)"]
+ruyaml = ["ruyaml (>=0.20.0)"]
+shtab = ["shtab (>=1.7.1)"]
+signatures = ["docstring-parser (>=0.15)", "jsonargparse[typing-extensions]", "typeshed-client (>=2.1.0)"]
+test = ["attrs (>=22.2.0)", "jsonargparse[argcomplete]", "jsonargparse[shtab]", "jsonargparse[test-no-urls]", "pydantic (>=2.3.0)", "responses (>=0.12.0)", "types-PyYAML (>=6.0.11)", "types-requests (>=2.28.9)"]
+test-no-urls = ["pytest (>=6.2.5)", "pytest-subtests (>=0.8.0)"]
+typing-extensions = ["typing-extensions (>=3.10.0.0)"]
+urls = ["requests (>=2.18.4)"]
 
 [[package]]
 name = "lightning"
@@ -1840,6 +1902,21 @@ tests = ["autopep8", "flake8", "isort", "numpy", "pytest", "scipy (>=1.7.1)", "t
 tutorials = ["matplotlib", "pandas", "tabulate", "torch"]
 
 [[package]]
+name = "typeshed-client"
+version = "2.5.1"
+description = "A library for accessing stubs in typeshed."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "typeshed_client-2.5.1-py3-none-any.whl", hash = "sha256:8cc254766b38f949effd3c9d4e0934d706d787127d7aedcabc648e4f094f7292"},
+    {file = "typeshed_client-2.5.1.tar.gz", hash = "sha256:6f1127f4853d216d5bfbb77260bb25e760fe00fcc67204a891be6c23471cd221"},
+]
+
+[package.dependencies]
+importlib-resources = ">=1.4.0"
+typing-extensions = ">=4.5.0"
+
+[[package]]
 name = "typing-extensions"
 version = "4.12.1"
 description = "Backported and Experimental Type Hints for Python 3.8+"
@@ -1973,4 +2050,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "88202fcf28b51a2e0bad07810f1dcf5f173c8211db9ec09356443e3ccfea7159"
+content-hash = "55a438b5f8f1f090abc0673a9566cbea183ade3cc55eab44946675e0ef64b1d6"

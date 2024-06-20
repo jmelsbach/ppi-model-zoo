@@ -1,5 +1,5 @@
 import torch
-import pytorch_lightning as pl
+import lightning.pytorch as L
 from torch import nn
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoModel, AutoTokenizer, BertConfig
@@ -7,7 +7,7 @@ from collections import OrderedDict
 from typing import List
 
 # TODO: metrics -> after merge
-# TODO: scheduling? -> Done, but test if it actually works
+# TODO: scheduling? -> Done, but test if it actually works: https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.LearningRateMonitor.html
 # TODO: label encoder? -> low prio
 # TODO: predict methods -> low prio
 # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet -> low prio
@@ -17,30 +17,47 @@ from typing import List
 # - global_rank == 0?
 # - keine activation function im classification head?
 
-class STEP(pl.LightningModule):
-    # TODO: explizite parameter, standardwerte die den paper entsprechen
-    def __init__(self, learning_rate: float = 0.001, nr_frozen_epochs: int = 0, dropout_rates: List[float] = [0.1, 0.2, 0.2],
-                 encoder_features: int = 1024, model_name: str = 'Rostlab/prot_bert_bfd', pool_cls: bool = True, pool_max: bool = True, pool_mean: bool = True, pool_mean_sqrt: bool = True,
-                 weight_decay: float = 1e-2, adam_epsilon: float = 1e-08, warumup_steps: int = 200, encoder_learning_rate: float = 5e-06
-                 ):
+
+class STEP(L.LightningModule):
+    # TODO: standardwerte die den paper entsprechen
+    def __init__(
+        self,
+        learning_rate: float = 0.001,
+        nr_frozen_epochs: int = 2,
+        dropout_rates: List[float] = [0.1, 0.2, 0.2],
+        encoder_features: int = 1024,
+        model_name: str = 'Rostlab/prot_bert_bfd',
+        pool_cls: bool = True,
+        pool_max: bool = True,
+        pool_mean: bool = True,
+        pool_mean_sqrt: bool = True,
+        weight_decay: float = 1e-2,
+        adam_epsilon: float = 1e-08,
+        warumup_steps: int = 200,
+        encoder_learning_rate: float = 5e-06
+    ) -> None:
         """
-        Possible hyperparameters:
-        - learning_rate (float): learning rate for the optimizer
-        - nr_frozen_epochs (int): number of epochs the encoder should be frozen
-        - dropout_rates (List): dropout probability
-        - encoder_features (int): number of features the encoder outputs
-        - model_name: name of the pretrained model
-        - pool_cls: Applies pooling over the CLS token (representing the whole amino acid sequence) // --> Use to determine input and output dimensions of the model
-        - pool_max: Applies max pooling over the token embeddings, considering only valid tokens. // --> Use to determine input and output dimensions of the model
-        - pool_mean: Computes the mean of the token embeddings, considering only valid tokens. // --> Use to determine input and output dimensions of the model
-        - pool_mean_sqrt // --> Use to determine input and output dimensions of the model
-        - label_set?
-        - max_length?
-        - warmup_steps?
-        - encoder_learning_rate?
-        - weight_decay?
-        - adam_epsilon?
+        Siamese Tailored deep sequence Embedding of Proteins (STEP) model
+        Reference: https://github.com/SCAI-BIO/STEP
+
+        Args:
+            learning_rate: learning rate for the optimizer
+            nr_frozen_epochs: number of epochs the encoder should be frozen
+            dropout_rates: dropout probability
+            encoder_features: number of features the encoder outputs
+            model_name: name of the pretrained model
+            pool_cls: Applies pooling over the CLS token (representing the whole amino acid sequence) // --> Use to determine input and output dimensions of the model
+            pool_max: Applies max pooling over the token embeddings, considering only valid tokens. // --> Use to determine input and output dimensions of the model
+            pool_mean: Computes the mean of the token embeddings, considering only valid tokens. // --> Use to determine input and output dimensions of the model
+            pool_mean_sqrt: // --> Use to determine input and output dimensions of the model
+            label_set: WIP
+            max_length: WIP
+            warmup_steps: WIP
+            encoder_learning_rate: WIP
+            weight_decay: WIP
+            adam_epsilon: WIP
         """
+
         super().__init__()
         self.learning_rate = learning_rate
         self.nr_frozen_epochs = nr_frozen_epochs
@@ -93,7 +110,7 @@ class STEP(pl.LightningModule):
 
         return test_loss
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> tuple:
         """
         Confiugre the optimizers and schedulers.
 

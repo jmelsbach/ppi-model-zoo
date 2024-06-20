@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import pandas as pd
-import pytorch_lightning as pl
+import lightning.pytorch as L
+from transformers import AutoTokenizer
 import torch
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
@@ -45,16 +46,37 @@ class GoldStandardDataset(Dataset):
         return tokens_A, tokens_B, target
 
 
-class GoldStandardDataModule(pl.LightningDataModule):
+class GoldStandardDataModule(L.LightningDataModule):
     # TODO: hier url übergeben
     # url aus map rausnehmen für user
     # TODO: methoden beschreibung, parameter erklären
-    def __init__(self, data_dir: str = '.data', batch_size: int = 2, num_workers: int = 4, tokenizer: object = None, max_len: int = 8, train_val_split: tuple = (1.0, 0.0)):
+    def __init__(
+        self,
+        data_dir: str = '.data',
+        batch_size: int = 16,
+        num_workers: int = 4,
+        tokenizer: str = None,
+        max_len: int = 1536,
+        train_val_split: tuple = (1.0, 0.0)
+    ):
+        """
+        Data Module for Gold Standard PPI Dataset
+        Reference: https://github.com/Llannelongue/B4PPI/tree/main
+        Args:
+            data_dir: path to directory which contains data
+            batch_size: number of observations in each batch
+            num_workers: number of workers used for data loading
+            tokenizer: tokenizer used to id each token and create attention mask
+            max_len: maximum number of tokens
+            train_val_split: ratio of data for training and validation data respectively, first value 
+        """
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.tokenizer = tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer, do_lower_case=False
+        )
         self.max_len = max_len
         self.train_val_split = train_val_split
 
