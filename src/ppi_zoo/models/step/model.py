@@ -6,17 +6,16 @@ from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
 
+# TODO: metrics -> after merge
 # TODO: scheduling? -> Done, but test if it actually works
 # TODO: label encoder? -> low prio
 # TODO: predict methods -> low prio
-# TODO: metrics -> after merge
 # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet -> low prio
 
 # Questions:
 # - local_logger?
 # - global_rank == 0?
 # - keine activation function im classification head?
-
 
 class STEP(pl.LightningModule):
     # TODO: explizite parameter, standardwerte die den paper entsprechen
@@ -41,7 +40,6 @@ class STEP(pl.LightningModule):
         - encoder_learning_rate?
         - weight_decay?
         - adam_epsilon?
-        [TODO] config parameter spaces
         """
         super().__init__()
         self.learning_rate = learning_rate
@@ -97,7 +95,7 @@ class STEP(pl.LightningModule):
 
     def configure_optimizers(self):
         """
-        Confiugre the optimizers and schedulears.
+        Confiugre the optimizers and schedulers.
 
         It also sets different learning rates for different parameter groups. 
         """
@@ -167,7 +165,9 @@ class STEP(pl.LightningModule):
         # pre-trained model configuration, gradient_checkpoints, label_encoder and other configs??
         # One important difference between our Bert model and the original Bert version is the way of dealing with sequences as separate documents
         self.ProtBertBFD = AutoModel.from_pretrained(
-            self.model_name, config=config)
+            self.model_name,
+            config=config
+        )
         # This means the Next sentence prediction is not used, as each sequence is treated as a complete document.
         # The masking follows the original Bert training with randomly masks 15% of the amino acids in the input.
 
@@ -238,7 +238,7 @@ class STEP(pl.LightningModule):
             param.requires_grad = True
         self._frozen = False
 
-    def _pooling(self, token_embeddings, attention_mask, pool_cls=True, pool_max=True, pool_mean=True, pool_mean_sqrt=True):
+    def _pooling(self, token_embeddings, attention_mask, pool_cls=True, pool_max=True, pool_mean=True, pool_mean_sqrt=True) -> torch.Tensor:
         """
         pool_max: Applies max pooling over the token embeddings, considering only valid tokens.
             pool_mean: Computes the mean of the token embeddings, considering only valid tokens.
@@ -250,7 +250,8 @@ class STEP(pl.LightningModule):
 
         # Pooling strategy
         output_vectors = []
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        input_mask_expanded = attention_mask.unsqueeze(
+            -1).expand(token_embeddings.size()).float()
         # -> token_id = 2 -> Protbert(token_id) -> embedding_vector_of_token_cls (1024)
         if pool_cls:
             output_vectors.append(cls_token_embeddings)

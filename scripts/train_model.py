@@ -3,6 +3,8 @@ from ppi_zoo.datasets.GoldStandardData import GoldStandardDataModule
 from ppi_zoo.models.step.model import STEP
 from transformers import AutoTokenizer
 
+# TODO: lightning CLI
+
 # Model initialization
 step = STEP(
     learning_rate=0.001,
