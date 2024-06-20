@@ -6,16 +6,19 @@ from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
 
-# TODO: metrics -> after merge
-# TODO: scheduling? -> Done, but test if it actually works: https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.LearningRateMonitor.html
+# TODO: add logging  and wandb Trainer(logger = wandb_logger)!
+# [TODO] add standard parameters from STEP Paper
+# TODO: metrics -> after merge // Dependency injection (Johannes: not include metrics in model but in constructor -> low prio)
+# TODO: scheduling? -> Done, but test if it actually works
 # TODO: label encoder? -> low prio
 # TODO: predict methods -> low prio
 # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet -> low prio
 
 # Questions:
+# - does scheduling work? -> log with wandb (use lightning https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.LearningRateMonitor.html)
 # - local_logger?
 # - global_rank == 0?
-# - keine activation function im classification head?
+# - keine activation function im classification head? -> CHECK WITH STEP PAPER
 
 
 class STEP(L.LightningModule):
@@ -151,7 +154,7 @@ class STEP(L.LightningModule):
             'name': 'learning_rate'
         }
 
-        return [optimizer], [scheduler_dict]
+        return [optimizer], [scheduler_dict] # [TODO] return dict with optimizer and scheduler
 
     def forward(self, inputs_A, inputs_B) -> torch.Tensor:
         # = torch.Size([8, 8, 1024]) -> torch.Size([num_sequences,  num_tokens_per_sequence, embedding_vectors_for_token])
