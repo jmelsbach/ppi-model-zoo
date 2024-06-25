@@ -1,5 +1,9 @@
 python model_cli.py fit \
- --trainer.max_epochs=2 \
+ --trainer.max_epochs=10 \
+ --trainer.precision=16-mixed \
+ --trainer.logger=WandbLogger \
+ --trainer.logger.project=protein \
+ --trainer.logger.offline false \
  --trainer.strategy=ddp_find_unused_parameters_true \
  --data.data_dir="../../.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" \
  --data.batch_size=2 \
