@@ -11,7 +11,7 @@ class GoldStandardDataset(Dataset):
 
     def __init__(self, data_dir: str, tokenizer: object, max_len: int):
         self.data_dir = data_dir
-        self.data = pd.read_csv(data_dir).head(1000)
+        self.data = pd.read_csv(data_dir)#.head(1000)
         self.tokenizer = tokenizer
         self.max_len = max_len
 
@@ -29,8 +29,8 @@ class GoldStandardDataset(Dataset):
             return_tensors='pt'
         )
         tokens['input_ids'] = tokens['input_ids'].squeeze()
-        tokens['attention_mask'] = tokens['input_ids'].squeeze()
-        tokens['token_type_ids'] = tokens['input_ids'].squeeze()
+        tokens['attention_mask'] = tokens['attention_mask'].squeeze()
+        tokens['token_type_ids'] = tokens['token_type_ids'].squeeze()
 
         return tokens
 
