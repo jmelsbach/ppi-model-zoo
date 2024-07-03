@@ -5,21 +5,25 @@ from transformers import AutoTokenizer
 import torch
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
+import re
 
 
 class GoldStandardDataset(Dataset):
 
-    def __init__(self, data_dir: str, tokenizer: object, max_len: int):
+    def __init__(self, data_dir: str, tokenizer: object, max_len: int, limit: int):
         self.data_dir = data_dir
-        self.data = pd.read_csv(data_dir)#.head(1000)
+        self.data = pd.read_csv(data_dir)
+        if limit:
+            self.data = self.data.head(limit)
         self.tokenizer = tokenizer
         self.max_len = max_len
 
     def __len__(self):
         return len(self.data)
-    
+
     def _tokenize(self, sequence: str) -> dict:
-        sequence = " ".join(sequence) # [TODO] sequence = re.sub(r"[UZOB]", "X", sequence_Example), sequence preprocessing based on tokenizer informations to still keep Goldstandarddatset generic
+        sequence = " ".join(sequence)
+        sequence = re.sub(r"[UZOB]", "X", sequence)
         tokens = self.tokenizer(
             sequence,
             max_length=self.max_len,
@@ -58,7 +62,8 @@ class GoldStandardDataModule(L.LightningDataModule):
         num_workers: int = 4,
         tokenizer: str = None,
         max_len: int = 1536,
-        train_val_split: tuple = (1.0, 0.0)
+        train_val_split: tuple = (1.0, 0.0),
+        limit: int = None
     ):
         """
         Data Module for Gold Standard PPI Dataset
@@ -80,11 +85,13 @@ class GoldStandardDataModule(L.LightningDataModule):
         )
         self.max_len = max_len
         self.train_val_split = train_val_split
+        self.limit = limit
 
     # TODO: download data from cloud?
     def setup(self, stage=None):
         dataset = GoldStandardDataset(
-            data_dir=self.data_dir, tokenizer=self.tokenizer, max_len=self.max_len)
+            data_dir=self.data_dir, tokenizer=self.tokenizer, max_len=self.max_len, limit=self.limit
+        )
 
         (train_size, val_size) = self.train_val_split
         all_train_indices = dataset.data.index[dataset.data['trainTest'] == 'train'].tolist(

@@ -6,7 +6,8 @@ from lightning.pytorch.loggers import WandbLogger
 def cli_main() -> None:
     cli = LightningCLI(
         model_class=STEP,
-        datamodule_class=GoldStandardDataModule
+        datamodule_class=GoldStandardDataModule,
+        save_config_kwargs={"overwrite": True}
     )
 
 if __name__ == '__main__':

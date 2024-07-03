@@ -6,10 +6,10 @@ from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
 
-# TODO: add logging  and wandb Trainer(logger = wandb_logger)!
 # [TODO] add standard parameters from STEP Paper
+# - warumup_steps not in paper
+# - dont understand the provided dense layer and dropout layer parameters
 # TODO: metrics -> after merge // Dependency injection (Johannes: not include metrics in model but in constructor -> low prio)
-# TODO: scheduling? -> Done, but test if it actually works
 # TODO: label encoder? -> low prio
 # TODO: predict methods -> low prio
 # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet -> low prio
@@ -22,21 +22,20 @@ from typing import List
 
 
 class STEP(L.LightningModule):
-    # TODO: standardwerte die den paper entsprechen
     def __init__(
         self,
-        learning_rate: float = 0.001,
-        nr_frozen_epochs: int = 2,
-        dropout_rates: List[float] = [0.1, 0.2, 0.2],
+        learning_rate: float = 0.000429331,
+        nr_frozen_epochs: int = 4,
+        dropout_rates: List[float] = [0.4, 0.2, 0.2],
         encoder_features: int = 1024,
         model_name: str = 'Rostlab/prot_bert_bfd',
         pool_cls: bool = True,
         pool_max: bool = True,
         pool_mean: bool = True,
         pool_mean_sqrt: bool = True,
-        weight_decay: float = 1e-2,
-        adam_epsilon: float = 1e-08,
-        warumup_steps: int = 200,
+        weight_decay: float = 6.34672e-07,
+        adam_epsilon: float = 5.90539e-08,
+        warmup_steps: int = 200,
         encoder_learning_rate: float = 5e-06
     ) -> None:
         """
@@ -75,7 +74,7 @@ class STEP(L.LightningModule):
         self.pool_mean_sqrt = pool_mean_sqrt
         self.weight_decay = weight_decay
         self.adam_epsilon = adam_epsilon
-        self.warmup_steps = warumup_steps
+        self.warmup_steps = warmup_steps
         self.encoder_learning_rate = encoder_learning_rate
 
         self.save_hyperparameters(ignore=[])
@@ -154,7 +153,7 @@ class STEP(L.LightningModule):
             'name': 'learning_rate'
         }
 
-        return [optimizer], [scheduler_dict] # [TODO] return dict with optimizer and scheduler
+        return [optimizer], [scheduler_dict]
 
     def forward(self, inputs_A, inputs_B) -> torch.Tensor:
         # = torch.Size([8, 8, 1024]) -> torch.Size([num_sequences,  num_tokens_per_sequence, embedding_vectors_for_token])
