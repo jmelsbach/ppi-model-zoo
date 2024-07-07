@@ -5,6 +5,15 @@ from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
+from torchmetrics import (
+    AUROC,
+    F1Score,
+    ROC,
+    Precision,
+    PrecisionRecallCurve,
+    Recall,
+    ConfusionMatrix
+)
 
 # [TODO] add standard parameters from STEP Paper
 # - warumup_steps not in paper
@@ -88,6 +97,14 @@ class STEP(L.LightningModule):
 
         self.loss_function = nn.BCEWithLogitsLoss()
 
+        # Define metrics
+        # TODO: move to super class or use callback
+        self._auroc = AUROC(task='binary')
+        self._f1 = F1Score(task='binary')
+        self._precision = Precision(task='binary')
+        self._recall = Recall(task='binary')
+        self._confusion_matrix = ConfusionMatrix(task='binary')
+
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         train_loss = self._single_step(batch)
         self.log('train_loss', train_loss)
@@ -101,16 +118,74 @@ class STEP(L.LightningModule):
             self._unfreeze_encoder()
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
-        val_loss = self._single_step(batch)
-        self.log('val_loss', val_loss)
+        inputs_A, inputs_B, targets = batch
+        predictions = self.forward(inputs_A, inputs_B)
+        val_loss = self.loss_function(
+            predictions,
+            targets.float()
+        )
+
+        test_loss = self._single_step(batch)
+        self.log(f'val_loss', test_loss)
+
+        self._auroc.update(predictions, targets)
+        self._f1.update(predictions, targets)
+        self._precision.update(predictions, targets)
+        self._recall.update(predictions, targets)
+        self._confusion_matrix.update(predictions, targets)
 
         return val_loss
 
+    # TODO: move to super class or use callback
+    def on_test_epoch_end(self):
+
+        self.log('test_auroc', self._auroc.compute())
+        self.log('test_f1', self._f1.compute())
+        self.log('test_precision', self._precision.compute())
+        self.log('test_recall', self._recall.compute())
+        self.log('test_confusion_matrix', self._confusion_matrix.compute())
+
+        # Reset metrics
+        self._auroc.reset()
+        self._f1.reset()
+        self._precision.reset()
+        self._recall.reset()
+        self._confusion_matrix.reset()
+
     def test_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
+        inputs_A, inputs_B, targets = batch
+        predictions = self.forward(inputs_A, inputs_B)
+        test_loss = self.loss_function(
+            predictions,
+            targets.float()
+        )
+
         test_loss = self._single_step(batch)
         self.log(f'test_loss', test_loss)
 
+        self._auroc.update(predictions, targets)
+        self._f1.update(predictions, targets)
+        self._precision.update(predictions, targets)
+        self._recall.update(predictions, targets)
+        self._confusion_matrix.update(predictions, targets)
+
         return test_loss
+
+    # TODO: move to super class or use callback
+    def on_test_epoch_end(self):
+
+        self.log('test_auroc', self._auroc.compute())
+        self.log('test_f1', self._f1.compute())
+        self.log('test_precision', self._precision.compute())
+        self.log('test_recall', self._recall.compute())
+        self.log('test_confusion_matrix', self._confusion_matrix.compute())
+
+        # Reset metrics
+        self._auroc.reset()
+        self._f1.reset()
+        self._precision.reset()
+        self._recall.reset()
+        self._confusion_matrix.reset()
 
     def configure_optimizers(self) -> tuple:
         """

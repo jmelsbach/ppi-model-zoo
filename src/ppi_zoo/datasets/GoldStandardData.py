@@ -6,13 +6,15 @@ import torch
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 import re
+from ppi_zoo.utils.gold_standard_utils import create_test_split
+import pickle as pkl
 
 
 class GoldStandardDataset(Dataset):
 
-    def __init__(self, data_dir: str, tokenizer: object, max_len: int, limit: int):
+    def __init__(self, data_dir: str, file_name: str, tokenizer: object, max_len: int, limit: int):
         self.data_dir = data_dir
-        self.data = pd.read_csv(data_dir)
+        self.data = pd.read_csv(f'{data_dir}/{file_name}')
         if limit:
             self.data = self.data.head(limit)
         self.tokenizer = tokenizer
@@ -58,11 +60,12 @@ class GoldStandardDataModule(L.LightningDataModule):
     def __init__(
         self,
         data_dir: str = '.data',
+        file_name: str = None,
         batch_size: int = 16,
         num_workers: int = 4,
         tokenizer: str = None,
         max_len: int = 1536,
-        train_val_split: tuple = (1.0, 0.0),
+        with_validation: bool = True,
         limit: int = None
     ):
         """
@@ -74,39 +77,50 @@ class GoldStandardDataModule(L.LightningDataModule):
             num_workers: number of workers used for data loading
             tokenizer: tokenizer used to id each token and create attention mask
             max_len: maximum number of tokens
-            train_val_split: ratio of data for training and validation data respectively, first value 
+            with_validation: controls whether to create a validation set or not
         """
         super().__init__()
         self.data_dir = data_dir
+        self.file_name = file_name
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.tokenizer = AutoTokenizer.from_pretrained(
             tokenizer, do_lower_case=False
         )
         self.max_len = max_len
-        self.train_val_split = train_val_split
+        self.with_validation = with_validation
         self.limit = limit
 
     # TODO: download data from cloud?
     def setup(self, stage=None):
         dataset = GoldStandardDataset(
-            data_dir=self.data_dir, tokenizer=self.tokenizer, max_len=self.max_len, limit=self.limit
+            data_dir=self.data_dir, file_name=self.file_name, tokenizer=self.tokenizer, max_len=self.max_len, limit=self.limit
         )
 
-        (train_size, val_size) = self.train_val_split
-        all_train_indices = dataset.data.index[dataset.data['trainTest'] == 'train'].tolist(
-        )
+        df = dataset.data
+        train_df = df.loc[
+            df['trainTest'] == 'train'
+        ]
 
-        if train_size == 1.0 and val_size == 0.0:
-            train_indices, val_indices = all_train_indices, []
+        if self.with_validation:
+            with open(f'{self.data_dir}/listHubs_human_20p_v2-1.pkl', 'rb') as f:
+                protein_hubs = pkl.load(f)
+            train_df, val_df = create_test_split(
+                train_df, protein_hubs=protein_hubs
+            )
         else:
-            train_indices, val_indices = train_test_split(
-                all_train_indices, train_size=train_size, test_size=val_size, shuffle=True)
+            train_df, val_df = train_df, pd.DataFrame()
 
-        test1_indices = dataset.data.index[dataset.data['trainTest'] == 'test1'].tolist(
-        )
-        test2_indices = dataset.data.index[dataset.data['trainTest'] == 'test2'].tolist(
-        )
+        train_indices = train_df.index
+        val_indices = val_df.index
+
+        test1_indices = df.index[
+            dataset.data['trainTest'] == 'test1'
+        ].tolist()
+
+        test2_indices = df.index[
+            dataset.data['trainTest'] == 'test2'
+        ].tolist()
 
         self.train_dataset = torch.utils.data.Subset(dataset, train_indices)
         self.val_dataset = torch.utils.data.Subset(dataset, val_indices)

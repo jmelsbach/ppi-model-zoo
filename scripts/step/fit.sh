@@ -38,13 +38,14 @@ args+=( "--trainer.logger=WandbLogger" )
 args+=( "--trainer.logger.project=protein" )
 args+=( "--trainer.logger.offline=false" )
 args+=( "--trainer.strategy=ddp_find_unused_parameters_true" )
-args+=( "--data.data_dir=../../.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" )
+args+=( "--data.data_dir=../../.data" )
+args+=( "--data.file_name=benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" )
 args+=( "--data.batch_size=2" )
 args+=( "--data.tokenizer=Rostlab/prot_bert_bfd" )
 
 # arguments effected by DEBUG
 if [ "$DEBUG" = true ]; then
-    args+=( '--data.limit=100' )
+    args+=( '--data.limit=2000' )
 fi
 if [ "$DEBUG" = true ]; then
     args+=( "--data.max_len=2" )
