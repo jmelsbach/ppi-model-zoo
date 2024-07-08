@@ -12,20 +12,10 @@ from torchmetrics import (
     Recall,
 )
 
-# [TODO] add standard parameters from STEP Paper
-# - warumup_steps not in paper
-# - dont understand the provided dense layer and dropout layer parameters
-# TODO: metrics -> after merge // Dependency injection (Johannes: not include metrics in model but in constructor -> low prio)
 # TODO: label encoder? -> low prio
 # TODO: predict methods -> low prio
 # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet -> low prio
-
-# Questions:
-# - does scheduling work? -> log with wandb (use lightning https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.LearningRateMonitor.html)
-# - local_logger?
-# - global_rank == 0?
-# - keine activation function im classification head? -> CHECK WITH STEP PAPER
-
+# TODO: move metrics functionality to super class or use callback
 
 class STEP(L.LightningModule):
     def __init__(
@@ -95,7 +85,6 @@ class STEP(L.LightningModule):
         self.loss_function = nn.BCEWithLogitsLoss()
 
         # Define metrics
-        # TODO: move to super class or use callback
         self._auroc = AUROC(task='binary')
         self._f1 = F1Score(task='binary')
         self._precision = Precision(task='binary')
@@ -109,7 +98,6 @@ class STEP(L.LightningModule):
         return train_loss
 
     def on_train_epoch_end(self) -> None:
-        # TODO: STEP logs the training metrics here
         if self.current_epoch + 1 > self.nr_frozen_epochs:
             self._unfreeze_encoder()
 
@@ -121,7 +109,6 @@ class STEP(L.LightningModule):
 
         return val_loss
 
-    # TODO: move to super class or use callback
     def on_validation_epoch_end(self):
         self._log_metrics('val')
         self._reset_metrics()
@@ -134,7 +121,6 @@ class STEP(L.LightningModule):
 
         return test_loss
 
-    # TODO: move to super class or use callback
     def on_test_epoch_end(self):
         self._log_metrics('test')
         self._reset_metrics()
