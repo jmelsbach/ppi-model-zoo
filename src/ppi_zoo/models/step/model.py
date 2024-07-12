@@ -121,8 +121,8 @@ class STEP(L.LightningModule):
 
         return test_loss
 
-    def on_test_epoch_end(self):
-        self._log_metrics('test')
+    def on_test_epoch_end(self, dataloader_idx):
+        self._log_metrics(f'test_{dataloader_idx}')
         self._reset_metrics()
 
     def configure_optimizers(self) -> tuple:
