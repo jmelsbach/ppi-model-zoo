@@ -34,14 +34,12 @@ args=()
 
 # standard arguments
 args+=( "--trainer.precision=16-mixed" )
-args+=( "--trainer.logger=WandbLogger" )
-args+=( "--trainer.logger.project=protein" )
-args+=( "--trainer.logger.offline=false" )
 args+=( "--trainer.strategy=ddp_find_unused_parameters_true" )
-args+=( "--data.data_dir=../../.data" )
+args+=( "--data.data_dir=.data" )
 args+=( "--data.file_name=benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" )
 args+=( "--data.batch_size=2" )
 args+=( "--data.tokenizer=Rostlab/prot_bert_bfd" )
+args+=( "--ckpt_path=./protein/smxuznts/checkpoints/epoch=9-step=219840.ckpt")
 
 # arguments effected by DEBUG
 if [ "$DEBUG" = true ]; then
@@ -53,4 +51,4 @@ fi
 [[ $DEBUG = true ]] && EPOCHS=3 || EPOCHS=10
 args+=( "--trainer.max_epochs=$EPOCHS" )
 
-python model_cli.py test "${args[@]}"
+python scripts/step/model_cli.py test "${args[@]}"
