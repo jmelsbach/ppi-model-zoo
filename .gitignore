@@ -166,3 +166,8 @@ cython_debug/
 # lightning logs
 lightning_logs/
 wandb/
+# lightining training parameteres
+config.yaml
+
+# trained models
+protein
