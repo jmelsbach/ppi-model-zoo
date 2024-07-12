@@ -84,7 +84,8 @@ class STEP(L.LightningModule):
 
         self.loss_function = nn.BCEWithLogitsLoss()
 
-        # Define metrics
+        # Define metrics -> task='binary' ensures that sigmoid function is applied on prediction of values not in [0,1]. Check: https://lightning.ai/docs/torchmetrics/stable/classification/auroc.html# 
+        # [TODO] ensure that sigmoid is also applied when prediction is in [0,1]
         self._auroc = AUROC(task='binary')
         self._f1 = F1Score(task='binary')
         self._precision = Precision(task='binary')
