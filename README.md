@@ -1,6 +1,17 @@
 <div align="center">    
  
-# PPI Model Zoo     
+# PPI Model Zoo
+
+## Model Execution
+- "poetry shell" -> Activate poetry env
+- "nvidia-smi" -> check GPU utilization
+- "bash scripts/step/test.sh" -> start testing script
+- "bash scripts/step/fit.sh" -> start testing script
+- slurm:
+  - "squeue": jobs listen
+  - "scancel <id>": job canceln
+  - "sbatch fit_slurm.sh": job starten (vorher poetry shell machen bzw ins script einbauen)
+- "fit.sh --debug" -> for Debugging 
 
 [![Paper](http://img.shields.io/badge/paper-arxiv.1001.2234-B31B1B.svg)]()
 [![Conference](http://img.shields.io/badge/NeurIPS-2019-4b44ce.svg)]()
@@ -32,12 +43,6 @@ LINK TO POETRY DOCU
 
 # install dependencies 
 poetry install
-
-# setup .env in root directory
-touch .env
-export PYTHONPATH="$PYTHONPATH:$PWD" # paste this in .env
-set -a
-source .env
 
  ```   
  Next, navigate to script directory and run any script.   
