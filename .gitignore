@@ -159,6 +159,15 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-#
+# data files
 .data/*.csv
 .data/*.pkl
+
+# lightning logs
+lightning_logs/
+wandb/
+# lightining training parameteres
+config.yaml
+
+# trained models
+protein
