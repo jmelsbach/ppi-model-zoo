@@ -6,10 +6,13 @@ from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
 from torchmetrics import (
-    AUROC,
-    F1Score,
-    Precision,
-    Recall,
+    BinaryConfusionMatrix,
+    BinaryPrecision,
+    BinaryRecall,
+    BinaryPrecisionRecallCurve,
+    BinaryF1Score,
+    BinaryROC,
+    BinaryAUROC
 )
 
 # TODO: label encoder? -> low prio
@@ -84,12 +87,13 @@ class STEP(L.LightningModule):
 
         self.loss_function = nn.BCEWithLogitsLoss()
 
-        # Define metrics -> task='binary' ensures that sigmoid function is applied on prediction of values not in [0,1]. Check: https://lightning.ai/docs/torchmetrics/stable/classification/auroc.html# 
-        # [TODO] ensure that sigmoid is also applied when prediction is in [0,1]
-        self._auroc = AUROC(task='binary')
-        self._f1 = F1Score(task='binary')
-        self._precision = Precision(task='binary')
-        self._recall = Recall(task='binary')
+        self._confusion_matrix = BinaryConfusionMatrix()
+        self._precision = BinaryPrecision()
+        self._recall = BinaryRecall()
+        self._precision_recall_curve = BinaryPrecisionRecallCurve()
+        self._f1 = BinaryF1Score()
+        self._roc_curve = BinaryROC()
+        self._auroc = BinaryAUROC()
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         _, _, train_loss = self._single_step(batch)
@@ -259,22 +263,31 @@ class STEP(L.LightningModule):
         # [2, 1, 3, 0, 0, 0, 0, 0]], device='cuda:0')}
 
     def _update_metrics(self, predictions, targets):
-        self._auroc.update(predictions, targets)
-        self._f1.update(predictions, targets)
+        self._confusion_matrix.update(predictions, targets)
         self._precision.update(predictions, targets)
         self._recall.update(predictions, targets)
+        self._precision_recall_curve.update(predictions, targets)
+        self._f1.update(predictions, targets)
+        self._roc_curve.update(predictions, targets)
+        self._auroc.update(predictions, targets)
 
     def _log_metrics(self, key: str):
-        self.log(f'{key}_auroc', self._auroc.compute())
-        self.log(f'{key}_f1', self._f1.compute())
+        self.log(f'{key}_confusion_matrix', self._confusion_matrix.compute())
         self.log(f'{key}_precision', self._precision.compute())
         self.log(f'{key}_recall', self._recall.compute())
+        self.log(f'{key}_precision_recall_curve', self._precision_recall_curve.compute())
+        self.log(f'{key}_f1', self._f1.compute())
+        self.log(f'{key}_roc_curve', self._roc_curve.compute())
+        self.log(f'{key}_auroc', self._auroc.compute())
 
     def _reset_metrics(self):
-        self._auroc.reset()
-        self._f1.reset()
+        self._confusion_matrix.reset()
         self._precision.reset()
         self._recall.reset()
+        self._precision_recall_curve.reset()
+        self._f1.reset()
+        self._roc_curve.reset()
+        self._auroc.reset()
 
     def _freeze_encoder(self) -> None:
         """ freezes the encoder layer. """
