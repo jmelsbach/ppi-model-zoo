@@ -15,8 +15,7 @@ class GoldStandardDataset(Dataset):
     def __init__(self, data_dir: str, file_name: str, tokenizer: object, max_len: int, limit: int):
         self.data_dir = data_dir
         self.data = pd.read_csv(f'{data_dir}/{file_name}')
-        if limit:
-            self.data = self.data.head(limit)
+        self.limit = limit or len(self.data)
         self.tokenizer = tokenizer
         self.max_len = max_len
 
@@ -121,10 +120,10 @@ class GoldStandardDataModule(L.LightningDataModule):
             dataset.data['trainTest'] == 'test2'
         ].tolist()
 
-        self.train_dataset = torch.utils.data.Subset(dataset, train_indices)
-        self.val_dataset = torch.utils.data.Subset(dataset, val_indices)
-        self.test1_dataset = torch.utils.data.Subset(dataset, test1_indices)
-        self.test2_dataset = torch.utils.data.Subset(dataset, test2_indices)
+        self.train_dataset = torch.utils.data.Subset(dataset, train_indices[0:self.limit])
+        self.val_dataset = torch.utils.data.Subset(dataset, val_indices[0:self.limit])
+        self.test1_dataset = torch.utils.data.Subset(dataset, test1_indices[0:self.limit])
+        self.test2_dataset = torch.utils.data.Subset(dataset, test2_indices[0:self.limit])
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
