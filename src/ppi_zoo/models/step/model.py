@@ -5,15 +5,8 @@ from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
-from torchmetrics import (
-    BinaryConfusionMatrix,
-    BinaryPrecision,
-    BinaryRecall,
-    BinaryPrecisionRecallCurve,
-    BinaryF1Score,
-    BinaryROC,
-    BinaryAUROC
-)
+from ppi_zoo.utils.metric_builder import build_metrics
+from ppi_zoo.metrics.MetricModule import MetricModule
 
 # TODO: label encoder? -> low prio
 # TODO: predict methods -> low prio
@@ -35,7 +28,7 @@ class STEP(L.LightningModule):
         weight_decay: float = 6.34672e-07,
         adam_epsilon: float = 5.90539e-08,
         warmup_steps: int = 200,
-        encoder_learning_rate: float = 5e-06
+        encoder_learning_rate: float = 5e-06,
     ) -> None:
         """
         Siamese Tailored deep sequence Embedding of Proteins (STEP) model
@@ -87,13 +80,17 @@ class STEP(L.LightningModule):
 
         self.loss_function = nn.BCEWithLogitsLoss()
 
-        self._confusion_matrix = BinaryConfusionMatrix()
-        self._precision = BinaryPrecision()
-        self._recall = BinaryRecall()
-        self._precision_recall_curve = BinaryPrecisionRecallCurve()
-        self._f1 = BinaryF1Score()
-        self._roc_curve = BinaryROC()
-        self._auroc = BinaryAUROC()
+    def setup(self, stage=None):
+        datamodule = self.trainer.datamodule
+        nr_dataloaders = 1
+        if stage == 'fit' or stage == 'validate':
+            nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
+            
+        if stage == 'test' or stage is None:
+            nr_dataloaders = len(datamodule.test_dataloader()) if type(datamodule.test_dataloader()) is list else 1
+        
+        self._metrics = build_metrics(nr_dataloaders)
+
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         _, _, train_loss = self._single_step(batch)
@@ -106,11 +103,15 @@ class STEP(L.LightningModule):
         if self.current_epoch + 1 > self.nr_frozen_epochs:
             self._unfreeze_encoder()
 
-    def validation_step(self, batch, batch_idx) -> torch.Tensor:
+    def validation_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
         targets, predictions, val_loss = self._single_step(batch)
 
         self.log(f'val_loss', val_loss)
-        self._update_metrics(predictions, targets)
+        self._update_metrics(
+            predictions,
+            targets,
+            filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
+        )
 
         return val_loss
 
@@ -122,12 +123,16 @@ class STEP(L.LightningModule):
         targets, predictions, test_loss = self._single_step(batch)
 
         self.log(f'test_loss', test_loss)
-        self._update_metrics(predictions, targets)
+        self._update_metrics(
+            predictions,
+            targets,
+            filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
+        )
 
         return test_loss
 
-    def on_test_epoch_end(self, dataloader_idx):
-        self._log_metrics(f'test_{dataloader_idx}')
+    def on_test_epoch_end(self):
+        self._log_metrics('test')
         self._reset_metrics()
 
     def configure_optimizers(self) -> tuple:
@@ -262,32 +267,27 @@ class STEP(L.LightningModule):
         # [2, 1, 3, 0, 0, 0, 0, 0],
         # [2, 1, 3, 0, 0, 0, 0, 0]], device='cuda:0')}
 
-    def _update_metrics(self, predictions, targets):
-        self._confusion_matrix.update(predictions, targets)
-        self._precision.update(predictions, targets)
-        self._recall.update(predictions, targets)
-        self._precision_recall_curve.update(predictions, targets)
-        self._f1.update(predictions, targets)
-        self._roc_curve.update(predictions, targets)
-        self._auroc.update(predictions, targets)
-
-    def _log_metrics(self, key: str):
-        self.log(f'{key}_confusion_matrix', self._confusion_matrix.compute())
-        self.log(f'{key}_precision', self._precision.compute())
-        self.log(f'{key}_recall', self._recall.compute())
-        self.log(f'{key}_precision_recall_curve', self._precision_recall_curve.compute())
-        self.log(f'{key}_f1', self._f1.compute())
-        self.log(f'{key}_roc_curve', self._roc_curve.compute())
-        self.log(f'{key}_auroc', self._auroc.compute())
+    def _update_metrics(self, predictions, targets, metric_modules: list):
+        metric_module: MetricModule
+        for metric_module in metric_modules:
+            metric_module.metric.update(predictions, targets)
+        
+    def _log_metrics(self, stage: str):
+        metric_module: MetricModule
+        for metric_module in self._metrics:
+            if metric_module.log:
+                metric_module.log(self.logger, metric_module.metric, metric_module.dataloader_idx)
+                continue
+            
+            key = f'{stage}_{metric_module.name}'
+            if metric_module.dataloader_idx:
+                key = f'{key}_{metric_module.dataloader_idx}'
+            self.log(key, metric_module.metric.compute())
 
     def _reset_metrics(self):
-        self._confusion_matrix.reset()
-        self._precision.reset()
-        self._recall.reset()
-        self._precision_recall_curve.reset()
-        self._f1.reset()
-        self._roc_curve.reset()
-        self._auroc.reset()
+        metric_module: MetricModule
+        for metric_module in self._metrics:
+            metric_module.metric.reset()
 
     def _freeze_encoder(self) -> None:
         """ freezes the encoder layer. """

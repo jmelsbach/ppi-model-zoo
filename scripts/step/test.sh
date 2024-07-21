@@ -37,7 +37,7 @@ args+=( "--trainer.precision=16-mixed" )
 args+=( "--trainer.strategy=ddp_find_unused_parameters_true" )
 args+=( "--data.data_dir=.data" )
 args+=( "--data.file_name=benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" )
-args+=( "--data.batch_size=2" )
+args+=( "--data.batch_size=16" )
 args+=( "--data.tokenizer=Rostlab/prot_bert_bfd" )
 args+=( "--ckpt_path=./protein/smxuznts/checkpoints/epoch=9-step=219840.ckpt")
 

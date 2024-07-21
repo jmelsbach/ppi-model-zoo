@@ -7,7 +7,7 @@
 #SBATCH --output=logs/step_%j.log # Standard output and error log
 
 ## SCRIPT
-export CUDA_VISIBLE_DEVICES=0,1
+#export CUDA_VISIBLE_DEVICES=0,1
 # Default values
 DEBUG=false
 
@@ -53,7 +53,7 @@ args+=( "--data.tokenizer=Rostlab/prot_bert_bfd" )
 
 # arguments effected by DEBUG
 if [ "$DEBUG" = true ]; then
-    args+=( '--data.limit=2000' )
+    args+=( '--data.limit=500' )
 fi
 if [ "$DEBUG" = true ]; then
     args+=( "--data.max_len=2" )
