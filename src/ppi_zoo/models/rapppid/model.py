@@ -7,11 +7,11 @@ import pytorch_lightning as pl
 
 from ranger21 import Ranger21
 from weightdrop import WeightDrop
-from nl import Mish
+    
 
 class MeanClassHead(nn.Module):
     def __init__(self, embedding_size, num_layers, weight_drop, variational):
-        super(MeanClassHead, self).__init__()#
+        super(MeanClassHead, self).__init__()
 
         if num_layers == 1:
             self.fc = WeightDrop(nn.Linear(embedding_size, 1), ['weight'],
@@ -19,16 +19,15 @@ class MeanClassHead(nn.Module):
         elif num_layers == 2:
             self.fc = nn.Sequential(
                         nn.Linear(embedding_size, embedding_size//2),
-                        Mish(),
                         nn.Linear(embedding_size//2, 1))
         else:
             raise NotImplementedError
 
     def forward(self, z_a, z_b):
-        
         z = (z_a + z_b)/2
         z = self.fc(z)
-
+        if hasattr(self, 'nl'):
+            z = z * torch.tanh(F.softplus(z))
         return z
 
 
@@ -44,7 +43,6 @@ class MultClassHead(nn.Module):
                         WeightDrop(nn.Linear(embedding_size, embedding_size//2), 
                                     ['weight'], dropout=weight_drop, 
                                     variational=variational),
-                        Mish(),
                         WeightDrop(nn.Linear(embedding_size//2, 1), 
                                     ['weight'], dropout=weight_drop, 
                                     variational=variational)
@@ -52,19 +50,13 @@ class MultClassHead(nn.Module):
         else:
             raise NotImplementedError
 
-        self.nl = Mish()
-
     def forward(self, z_a, z_b):
-
         z_a = (z_a - z_a.mean()) / z_a.std()
         z_b = (z_b - z_b.mean()) / z_b.std()
-        
         z = z_a * z_b
-
-        z = self.nl(z)
+        z = z * torch.tanh(F.softplus(z))
         z = self.fc(z)
-
-        return z
+        return z  
 
 
 class ConcatClassHead(nn.Module):
@@ -77,16 +69,15 @@ class ConcatClassHead(nn.Module):
             self.fc = nn.Sequential(
                         nn.Linear(embedding_size*2, embedding_size//2),
                         nn.Dropout(weight_drop),
-                        Mish(),
                         nn.Linear(embedding_size//2, 1))
         else:
             raise NotImplementedError
 
     def forward(self, z_a, z_b):
-        
         z_ab = torch.cat((z_a, z_b), axis=1)
         z = self.fc(z_ab)
-
+        if hasattr(self, 'nl'):
+            z = z * torch.tanh(F.softplus(z))
         return z
 
 
