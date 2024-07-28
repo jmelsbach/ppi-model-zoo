@@ -11,7 +11,7 @@ from nl import Mish
 
 class MeanClassHead(nn.Module):
     def __init__(self, embedding_size, num_layers, weight_drop, variational):
-        super(MeanClassHead, self).__init__()
+        super(MeanClassHead, self).__init__()#
 
         if num_layers == 1:
             self.fc = WeightDrop(nn.Linear(embedding_size, 1), ['weight'],
@@ -213,38 +213,18 @@ class LSTMAWD(pl.LightningModule):
         x = self.nl(x)
 
         return x
-            
-    def training_step(self, batch, batch_idx):
-        # Access optimizer
-        opt = self.optimizers() if self.lr_scaling else None
-        
-        if self.lr_scaling:
-            # Reset gradients
-            opt.zero_grad()
 
-        # Freeze/Unfreeze layers based on current epoch
-        if self.current_epoch < self.frozen_epochs:
-            self.rnn_dp.requires_grad_(False)
-        else:
-            self.rnn_dp.requires_grad_(True)
-
-        # Unpack batch
-        a, b, y = batch
-
-        # Forward pass
+    def single_step(self, batch):
+        a, b, targets = batch
         z_a = self(a)
         z_b = self(b)
-
-        y = y.reshape((-1, 1)).float()
-        y_hat = self.class_head(z_a, z_b).float()
-
-        # Compute loss
-        loss = self.criterion(y_hat, y)
-
-        # Manhattan distance regularization if applicable
+        targets = targets.reshape((-1, 1)).float()
+        predictions = self.class_head(z_a, z_b).float()
+        loss = self.criterion(predictions, targets)
+        
         if self.class_head_name == 'manhattan':
             d = (z_a - z_b).pow(2)
-            indicator = (2 * y - 1) * -1
+            indicator = (2 * targets - 1) * -1
             d_reg = max(0, torch.mean(indicator * d))
 
             delay = 0
@@ -264,20 +244,38 @@ class LSTMAWD(pl.LightningModule):
 
             loss = reg_alpha * d_reg + loss * interact_alpha
 
+        return loss, predictions, targets
+
+    def training_step(self, batch, batch_idx):
+        # Access optimizer
+        opt = self.optimizers() if self.lr_scaling else None
+        
+        if self.lr_scaling:
+            # Reset gradients
+            opt.zero_grad()
+
+        # Freeze/Unfreeze layers based on current epoch
+        if self.current_epoch < self.frozen_epochs:
+            self.rnn_dp.requires_grad_(False)
+        else:
+            self.rnn_dp.requires_grad_(True)
+
+        loss, predictions, targets = self.single_step(batch)
+
         # Compute metrics
-        y_hat_probs = torch.sigmoid(y_hat.flatten()).cpu().detach().numpy().astype(np.float32)
-        y_np = y.flatten().cpu().detach().numpy().astype(int)
+        predictions_probs = torch.sigmoid(predictions.flatten()).cpu().detach().numpy().astype(np.float32)
+        targets_np = targets.flatten().cpu().detach().numpy().astype(int)
 
         try:
-            auroc = roc_auc_score(y_np, y_hat_probs)
+            auroc = roc_auc_score(targets_np, predictions_probs)
         except ValueError:
             auroc = -1
         try:
-            apr = average_precision_score(y_np, y_hat_probs)
+            apr = average_precision_score(targets_np, predictions_probs)
         except ValueError:
             apr = -1
         try:
-            acc = accuracy_score(y_np, (y_hat_probs > 0.5).astype(int))
+            acc = accuracy_score(targets_np, (predictions_probs > 0.5).astype(int))
         except ValueError:
             acc = -1
 
@@ -287,11 +285,11 @@ class LSTMAWD(pl.LightningModule):
         self.log('train_acc', acc, on_step=False, on_epoch=True)
 
         if batch_idx == 0:
-            self.logger.experiment[0].add_pr_curve('train_pr', y, torch.sigmoid(y_hat), self.current_epoch)
-            if len(y_hat_probs[y_np == 1]) > 0:
-                self.logger.experiment[0].add_histogram('train_pos', y_hat_probs[y_np == 1], self.current_epoch)
-            if len(y_hat_probs[y_np == 0]) > 0:
-                self.logger.experiment[0].add_histogram('train_neg', y_hat_probs[y_np == 0], self.current_epoch)
+            self.logger.experiment[0].add_pr_curve('train_pr', targets, torch.sigmoid(predictions), self.current_epoch)
+            if len(predictions_probs[targets_np == 1]) > 0:
+                self.logger.experiment[0].add_histogram('train_pos', predictions_probs[targets_np == 1], self.current_epoch)
+            if len(predictions_probs[targets_np == 0]) > 0:
+                self.logger.experiment[0].add_histogram('train_neg', predictions_probs[targets_np == 0], self.current_epoch)
 
         # Log loss
         self.log('train_loss', loss, on_step=False, on_epoch=True)
@@ -299,148 +297,26 @@ class LSTMAWD(pl.LightningModule):
 
         if self.lr_scaling:
             # Adjust learning rate based on sequence lengths
-            max_len_a = torch.max(torch.sum(a != 0, axis=1)).item()
-            max_len_b = torch.max(torch.sum(b != 0, axis=1)).item()
-            total_len = max_len_a + max_len_b
+            max_len_a = torch.max(torch.sum(a != 0, axis=1))
+            max_len_b = torch.max(torch.sum(b != 0, axis=1))
+            new_lr = self.lr_base / (max_len_a + max_len_b)
+            for pg in opt.param_groups:
+                pg['lr'] = new_lr
 
-            lr_scaled = self.lr_base * total_len / (self.trunc_len * 2)
-            opt.param_groups[0]['lr'] = lr_scaled
-
-            self.log('total_seq_len', total_len, on_step=True, on_epoch=False)
-            self.log('lr_scaled', lr_scaled, on_step=True, on_epoch=False)
-            self.log('lr_base', self.lr_base, on_step=True, on_epoch=False)
-
-            # Backward pass and optimizer step
+            # Backpropagation
             self.manual_backward(loss)
             opt.step()
 
         return loss
-      
+
     def validation_step(self, batch, batch_idx):
-        a, b, y = batch
-
-        z_a = self(a)
-        z_b = self(b)
-
-        y = y.reshape((-1, 1)).float()
-        y_hat = self.class_head(z_a, z_b).float()
-
-        loss = self.criterion(y_hat, y)
-
-        if self.class_head_name == 'manhattan':
-            d = (z_a - z_b).pow(2)
-            indicator = (2 * y - 1) * -1
-            d_reg = max(0, torch.mean(indicator * d))
-
-            delay = 0
-            min_contrib = 0.1
-
-            if self.current_epoch > delay:
-                interact_alpha = max(self.current_epoch / (self.num_epochs // 2), min_contrib)
-            else:
-                interact_alpha = min_contrib
-
-            reg_alpha = 1 - interact_alpha
-
-            self.log('val_reg_alpha', reg_alpha)
-            self.log('val_d_reg', d_reg)
-            self.log('val_interact_alpha', interact_alpha)
-            self.log('val_interact_loss', loss)
-
-            loss = reg_alpha * d_reg + loss * interact_alpha
-
-        y_hat_probs = torch.sigmoid(y_hat.flatten()).cpu().detach().numpy().astype(np.float32)
-        y_np = y.flatten().cpu().detach().numpy().astype(int)
-
-        try:
-            auroc = roc_auc_score(y_np, y_hat_probs)
-        except ValueError:
-            auroc = -1
-
-        try:
-            apr = average_precision_score(y_np, y_hat_probs)
-        except ValueError:
-            apr = -1
-
-        try:
-            acc = accuracy_score(y_np, (y_hat_probs > 0.5).astype(int))
-        except ValueError:
-            acc = -1
-
-        self.log('val_auroc', auroc)
-        self.log('val_apr', apr)
-        self.log('val_acc', acc, prog_bar=True)
-
-        if batch_idx == 0:
-            self.logger.experiment[0].add_pr_curve('val_pr', y, torch.sigmoid(y_hat), self.current_epoch)
-            if len(y_hat_probs[y_np == 1]) > 0:
-                self.logger.experiment[0].add_histogram('val_pos', y_hat_probs[y_np == 1], self.current_epoch)
-            if len(y_hat_probs[y_np == 0]) > 0:
-                self.logger.experiment[0].add_histogram('val_neg', y_hat_probs[y_np == 0], self.current_epoch)
-
-        self.log('val_loss', loss, prog_bar=True)
-
+        loss, predictions, targets = self.single_step(batch)
+        self.log('val_loss', loss, on_step=True, on_epoch=True)
         return loss
 
     def test_step(self, batch, batch_idx):
-        a, b, y = batch
-
-        z_a = self(a)
-        z_b = self(b)
-
-        y = y.reshape((-1, 1)).float()
-        y_hat = self.class_head(z_a, z_b).float()
-
-        loss = self.criterion(y_hat, y)
-
-        if self.class_head_name == 'manhattan':
-            d = (z_a - z_b).pow(2)
-            indicator = (2 * y - 1) * -1
-            d_reg = max(0, torch.mean(indicator * d))
-
-            delay = 0
-            min_contrib = 0.1
-
-            if self.current_epoch > delay:
-                interact_alpha = max(self.current_epoch / (self.num_epochs // 2), min_contrib)
-            else:
-                interact_alpha = min_contrib
-
-            reg_alpha = 1 - interact_alpha
-
-            loss = reg_alpha * d_reg + loss * interact_alpha
-
-        y_hat_probs = torch.sigmoid(y_hat.flatten()).cpu().detach().numpy().astype(np.float32)
-        y_np = y.flatten().cpu().detach().numpy().astype(int)
-
-        try:
-            auroc = roc_auc_score(y_np, y_hat_probs)
-        except ValueError:
-            auroc = -1
-
-        try:
-            apr = average_precision_score(y_np, y_hat_probs)
-        except ValueError:
-            apr = -1
-
-        try:
-            acc = accuracy_score(y_np, (y_hat_probs > 0.5).astype(int))
-        except ValueError:
-            acc = -1
-
-        self.log('test_auroc', auroc)
-        self.log('test_apr', apr)
-        self.log('test_acc', acc, prog_bar=True)
-
-        if batch_idx == 0:
-            self.logger.experiment[0].add_pr_curve('test_pr', y, torch.sigmoid(y_hat), self.current_epoch)
-            if len(y_hat_probs[y_np == 1]) > 0:
-                self.logger.experiment[0].add_histogram('test_pos', y_hat_probs[y_np == 1], self.current_epoch)
-            if len(y_hat_probs[y_np == 0]) > 0:
-                self.logger.experiment[0].add_histogram('test_neg', y_hat_probs[y_np == 0], self.current_epoch)
-
-        self.log('test_loss', loss, prog_bar=True)
-
+        loss, predictions, targets = self.single_step(batch)
+        self.log('test_loss', loss, on_step=True, on_epoch=True)
         return loss
     
     def configure_optimizers(self):
