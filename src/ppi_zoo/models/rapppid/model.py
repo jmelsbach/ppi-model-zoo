@@ -1,5 +1,4 @@
 import numpy as np
-from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score, roc_curve, precision_recall_curve
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -9,7 +8,7 @@ from ppi_zoo.utils.metric_builder import build_metrics
 from ppi_zoo.metrics.MetricModule import MetricModule
 from ranger21 import Ranger21
 from weightdrop import WeightDrop
-    
+
 
 class MeanClassHead(nn.Module):
     def __init__(self, embedding_size, num_layers, weight_drop, variational):
@@ -31,7 +30,6 @@ class MeanClassHead(nn.Module):
         if hasattr(self, 'nl'):
             z = z * torch.tanh(F.softplus(z))
         return z
-
 
 class MultClassHead(nn.Module):
     def __init__(self, embedding_size, num_layers, weight_drop, variational):
@@ -60,7 +58,6 @@ class MultClassHead(nn.Module):
         z = self.fc(z)
         return z  
 
-
 class ConcatClassHead(nn.Module):
     def __init__(self, embedding_size, num_layers, weight_drop, variational):
         super(ConcatClassHead, self).__init__()
@@ -81,7 +78,6 @@ class ConcatClassHead(nn.Module):
         if hasattr(self, 'nl'):
             z = z * torch.tanh(F.softplus(z))
         return z
-
 
 class ManhattanClassHead(nn.Module):
     def __init__(self):
@@ -239,7 +235,7 @@ class LSTMAWD(pl.LightningModule):
 
         return targets, predictions, loss
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, batch_idx) -> torch.Tensor:
         # Access optimizer
         opt = self.optimizers() if self.lr_scaling else None
         
@@ -253,40 +249,11 @@ class LSTMAWD(pl.LightningModule):
         else:
             self.rnn_dp.requires_grad_(True)
 
-        targets, predictions, loss = self._single_step(batch)
-
-        # Compute metrics
-        predictions_probs = torch.sigmoid(predictions.flatten()).cpu().detach().numpy().astype(np.float32)
-        targets_np = targets.flatten().cpu().detach().numpy().astype(int)
-
-        try:
-            auroc = roc_auc_score(targets_np, predictions_probs)
-        except ValueError:
-            auroc = -1
-        try:
-            apr = average_precision_score(targets_np, predictions_probs)
-        except ValueError:
-            apr = -1
-        try:
-            acc = accuracy_score(targets_np, (predictions_probs > 0.5).astype(int))
-        except ValueError:
-            acc = -1
-
-        # Log metrics
-        self.log('train_auroc', auroc, on_step=False, on_epoch=True)
-        self.log('train_apr', apr, on_step=False, on_epoch=True)
-        self.log('train_acc', acc, on_step=False, on_epoch=True)
-
-        if batch_idx == 0:
-            self.logger.experiment[0].add_pr_curve('train_pr', targets, torch.sigmoid(predictions), self.current_epoch)
-            if len(predictions_probs[targets_np == 1]) > 0:
-                self.logger.experiment[0].add_histogram('train_pos', predictions_probs[targets_np == 1], self.current_epoch)
-            if len(predictions_probs[targets_np == 0]) > 0:
-                self.logger.experiment[0].add_histogram('train_neg', predictions_probs[targets_np == 0], self.current_epoch)
+        targets, predictions, train_loss = self._single_step(batch)
 
         # Log loss
-        self.log('train_loss', loss, on_step=False, on_epoch=True)
-        self.log('train_loss_step', loss, on_step=True, on_epoch=False, prog_bar=self.lr_scaling)
+        self.log('train_loss', train_loss, on_step=False, on_epoch=True)
+        self.log('train_loss_step', train_loss, on_step=True, on_epoch=False, prog_bar=self.lr_scaling)
 
         if self.lr_scaling:
             # Adjust learning rate based on sequence lengths
@@ -297,17 +264,18 @@ class LSTMAWD(pl.LightningModule):
                 pg['lr'] = new_lr
 
             # Backpropagation
-            self.manual_backward(loss)
+            self.manual_backward(train_loss)
             opt.step()
 
-        return loss
+        return train_loss
     
-    def _update_metrics(self, predictions, targets, metric_modules: list):
+    # metrics functions
+    def _update_metrics(self, predictions, targets, metric_modules: list) -> None:
         metric_module: MetricModule
         for metric_module in metric_modules:
             metric_module.metric.update(predictions, targets)
-        
-    def _log_metrics(self, stage: str):
+    
+    def _log_metrics(self, stage: str) -> None:
         metric_module: MetricModule
         for metric_module in self._metrics:
             if metric_module.log:
@@ -319,11 +287,12 @@ class LSTMAWD(pl.LightningModule):
                 key = f'{key}_{metric_module.dataloader_idx}'
             self.log(key, metric_module.metric.compute())
 
-    def _reset_metrics(self):
+    def _reset_metrics(self) -> None:
         metric_module: MetricModule
         for metric_module in self._metrics:
             metric_module.metric.reset()
 
+    # validation and testing
     def validation_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
         targets, predictions, val_loss = self._single_step(batch)
 
@@ -336,7 +305,7 @@ class LSTMAWD(pl.LightningModule):
 
         return val_loss
     
-    def on_validation_epoch_end(self):
+    def on_validation_epoch_end(self) -> None:
         self._log_metrics('val')
         self._reset_metrics()
 
@@ -349,11 +318,11 @@ class LSTMAWD(pl.LightningModule):
             filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
         )
     
-    def on_test_epoch_end(self):
+    def on_test_epoch_end(self) -> None:
         self._log_metrics('test')
         self._reset_metrics()
     
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> tuple:
         if self.optimizer_type == 'ranger21':
             optimizer = Ranger21(
                 self.parameters(), 
