@@ -108,52 +108,59 @@ class LSTMAWD(pl.LightningModule):
         self.lr_scaling = lr_scaling
         self.trunc_len = trunc_len
         self.num_epochs = num_epochs
-        self.embedding_size = embedding_size
-        self.lstm_dropout_rate = lstm_dropout_rate
-        self.classhead_dropout_rate = classhead_dropout_rate
-        self.rnn_num_layers = rnn_num_layers
-        self.classhead_num_layers = classhead_num_layers
         self.lr_base = lr
         self.embedding_droprate = embedding_droprate
         self.weight_decay = weight_decay
-        self.bi_reduce = bi_reduce
-        self.class_head_name = class_head_name
         self.frozen_epochs = frozen_epochs
         self.optimizer_type = optimizer_type
-        
-        # Define layers and components
-        self.fc = nn.Linear(embedding_size, embedding_size)
-        self.nl = Mish()
 
-        # Define RNN
-        if self.bi_reduce == 'concat':
-            self.rnn = nn.LSTM(embedding_size, embedding_size // 2, rnn_num_layers, bidirectional=True, batch_first=True)
-        elif self.bi_reduce in ['max', 'mean', 'last']:
-            self.rnn = nn.LSTM(embedding_size, embedding_size, rnn_num_layers, bidirectional=True, batch_first=True)
-        else:
-            raise ValueError(f"Unexpected value for `bi_reduce`: {bi_reduce}")
+        # Initialize model build parameters
+        self.embedding_size = embedding_size
+        self.bi_reduce = bi_reduce
+        self.rnn_num_layers = rnn_num_layers
+        self.lstm_dropout_rate = lstm_dropout_rate
+        self.class_head_name = class_head_name
+        self.classhead_num_layers = classhead_num_layers
+        self.classhead_dropout_rate = classhead_dropout_rate
+        self.variational_dropout = variational_dropout
+        self.num_codes = num_codes
 
-        self.rnn_dp = WeightDrop(self.rnn, ['weight_hh_l0'], lstm_dropout_rate, variational_dropout)
-
-        # Define class head
-        if class_head_name == 'concat':
-            self.class_head = ConcatClassHead(embedding_size, classhead_num_layers, classhead_dropout_rate, variational_dropout)
-        elif class_head_name == 'mean':
-            self.class_head = MeanClassHead(embedding_size, classhead_num_layers, classhead_dropout_rate, variational_dropout)
-        elif class_head_name == 'mult':
-            self.class_head = MultClassHead(embedding_size, classhead_num_layers, classhead_dropout_rate, variational_dropout)
-        elif class_head_name == 'manhattan':
-            self.class_head = ManhattanClassHead()
-        else:
-            raise ValueError(f"Unexpected value for `class_head_name`: {class_head_name}")
-
-        self.criterion = nn.BCEWithLogitsLoss()
-        self.embedding = nn.Embedding(num_codes, embedding_size, padding_idx=0)
+        self._build_model()
 
         # Manual optimization if lr_scaling is enabled
         if lr_scaling:
             self.automatic_optimization = False
 
+    def _build_model(self) -> None:
+        # Define layers and components
+        self.fc = nn.Linear(self.embedding_size, self.embedding_size)
+        self.nl = lambda x: x * torch.tanh(F.softplus(x))
+
+        # Define RNN
+        if self.bi_reduce == 'concat':
+            self.rnn = nn.LSTM(self.embedding_size, self.embedding_size // 2, self.rnn_num_layers, bidirectional=True, batch_first=True)
+        elif self.bi_reduce in ['max', 'mean', 'last']:
+            self.rnn = nn.LSTM(self.embedding_size, self.embedding_size, self.rnn_num_layers, bidirectional=True, batch_first=True)
+        else:
+            raise ValueError(f"Unexpected value for `bi_reduce`: {self.bi_reduce}")
+
+        self.rnn_dp = WeightDrop(self.rnn, ['weight_hh_l0'], self.lstm_dropout_rate, self.variational_dropout)
+
+        # Define class head
+        if self.class_head_name == 'concat':
+            self.class_head = ConcatClassHead(self.embedding_size, self.classhead_num_layers, self.classhead_dropout_rate, self.variational_dropout)
+        elif self.class_head_name == 'mean':
+            self.class_head = MeanClassHead(self.embedding_size, self.classhead_num_layers, self.classhead_dropout_rate, self.variational_dropout)
+        elif self.class_head_name == 'mult':
+            self.class_head = MultClassHead(self.embedding_size, self.classhead_num_layers, self.classhead_dropout_rate, self.variational_dropout)
+        elif self.class_head_name == 'manhattan':
+            self.class_head = ManhattanClassHead()
+        else:
+            raise ValueError(f"Unexpected value for `class_head_name`: {self.class_head_name}")
+
+        self.criterion = nn.BCEWithLogitsLoss()
+        self.embedding = nn.Embedding(self.num_codes, self.embedding_size, padding_idx=0)
+    
     # TODO: Hat das keine Vorimplementierung in pytorch oder lightning?
     def embedding_dropout(self, embed, words, p=0.2):
         """
