@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from torch import nn
 import pytorch_lightning as pl
 
+from ppi_zoo.utils.metric_builder import build_metrics
+from ppi_zoo.metrics.MetricModule import MetricModule
 from ranger21 import Ranger21
 from weightdrop import WeightDrop
     
@@ -205,7 +207,7 @@ class LSTMAWD(pl.LightningModule):
 
         return x
 
-    def single_step(self, batch):
+    def _single_step(self, batch):
         a, b, targets = batch
         z_a = self(a)
         z_b = self(b)
@@ -235,7 +237,7 @@ class LSTMAWD(pl.LightningModule):
 
             loss = reg_alpha * d_reg + loss * interact_alpha
 
-        return loss, predictions, targets
+        return targets, predictions, loss
 
     def training_step(self, batch, batch_idx):
         # Access optimizer
@@ -251,7 +253,7 @@ class LSTMAWD(pl.LightningModule):
         else:
             self.rnn_dp.requires_grad_(True)
 
-        loss, predictions, targets = self.single_step(batch)
+        targets, predictions, loss = self._single_step(batch)
 
         # Compute metrics
         predictions_probs = torch.sigmoid(predictions.flatten()).cpu().detach().numpy().astype(np.float32)
@@ -299,16 +301,57 @@ class LSTMAWD(pl.LightningModule):
             opt.step()
 
         return loss
+    
+    def _update_metrics(self, predictions, targets, metric_modules: list):
+        metric_module: MetricModule
+        for metric_module in metric_modules:
+            metric_module.metric.update(predictions, targets)
+        
+    def _log_metrics(self, stage: str):
+        metric_module: MetricModule
+        for metric_module in self._metrics:
+            if metric_module.log:
+                metric_module.log(self.logger, metric_module.metric, metric_module.dataloader_idx)
+                continue
+            
+            key = f'{stage}_{metric_module.name}'
+            if metric_module.dataloader_idx:
+                key = f'{key}_{metric_module.dataloader_idx}'
+            self.log(key, metric_module.metric.compute())
 
-    def validation_step(self, batch, batch_idx):
-        loss, predictions, targets = self.single_step(batch)
-        self.log('val_loss', loss, on_step=True, on_epoch=True)
-        return loss
+    def _reset_metrics(self):
+        metric_module: MetricModule
+        for metric_module in self._metrics:
+            metric_module.metric.reset()
 
-    def test_step(self, batch, batch_idx):
-        loss, predictions, targets = self.single_step(batch)
-        self.log('test_loss', loss, on_step=True, on_epoch=True)
-        return loss
+    def validation_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
+        targets, predictions, val_loss = self._single_step(batch)
+
+        self.log(f'val_loss', val_loss)
+        self._update_metrics(
+            predictions,
+            targets,
+            filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
+        )
+
+        return val_loss
+    
+    def on_validation_epoch_end(self):
+        self._log_metrics('val')
+        self._reset_metrics()
+
+    def test_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
+        targets, predictions, test_loss = self._single_step(batch)
+        self.log(f'test_loss', test_loss)
+        self._update_metrics(
+            predictions,
+            targets,
+            filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
+        )
+    
+    def on_test_epoch_end(self):
+        self._log_metrics('test')
+        self._reset_metrics()
     
     def configure_optimizers(self):
         if self.optimizer_type == 'ranger21':
