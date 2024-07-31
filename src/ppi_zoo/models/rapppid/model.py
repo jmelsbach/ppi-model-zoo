@@ -94,17 +94,33 @@ class ManhattanClassHead(nn.Module):
 
 
 class LSTMAWD(pl.LightningModule):
-    def __init__(self, num_codes, embedding_size, steps_per_epoch, num_epochs, 
-                 lstm_dropout_rate, classhead_dropout_rate, rnn_num_layers, 
-                 classhead_num_layers, lr, weight_decay, bi_reduce, 
-                 class_head_name, variational_dropout, lr_scaling, trunc_len, 
-                 embedding_droprate, frozen_epochs, optimizer_type):
-        super(LSTMAWD, self).__init__()
+    def __init__(
+        self,
+        num_codes: int,
+        embedding_size: int,
+        steps_per_epoch: int,
+        num_epochs: int,
+        lstm_dropout_rate: float,
+        classhead_dropout_rate: float,
+        rnn_num_layers: int,
+        classhead_num_layers: int,
+        lr: float,
+        weight_decay: float,
+        bi_reduce: str,
+        class_head_name: str,
+        variational_dropout: bool,
+        lr_scaling: bool,
+        trunc_len: int,
+        embedding_droprate: float,
+        frozen_epochs: int,
+        optimizer_type: str
+    ) -> None:
+        super().__init__()
         
         # Save hyperparameters
         self.save_hyperparameters()
         
-        # Initialize parameters
+        # Initialize training parameters
         self.lr_scaling = lr_scaling
         self.trunc_len = trunc_len
         self.num_epochs = num_epochs
@@ -131,37 +147,36 @@ class LSTMAWD(pl.LightningModule):
         if lr_scaling:
             self.automatic_optimization = False
 
+        self.criterion = nn.BCEWithLogitsLoss()
+
     def _build_model(self) -> None:
         # Define layers and components
         self.fc = nn.Linear(self.embedding_size, self.embedding_size)
         self.nl = lambda x: x * torch.tanh(F.softplus(x))
 
-        # Define RNN
-        if self.bi_reduce == 'concat':
-            self.rnn = nn.LSTM(self.embedding_size, self.embedding_size // 2, self.rnn_num_layers, bidirectional=True, batch_first=True)
-        elif self.bi_reduce in ['max', 'mean', 'last']:
-            self.rnn = nn.LSTM(self.embedding_size, self.embedding_size, self.rnn_num_layers, bidirectional=True, batch_first=True)
-        else:
+        # Define Recurrent Neural Network
+        if self.bi_reduce not in ['concat', 'max', 'mean', 'last']:
             raise ValueError(f"Unexpected value for `bi_reduce`: {self.bi_reduce}")
-
+        rnn_hidden_size = self.embedding_size // 2 if self.bi_reduce == 'concat' else self.embedding_size
+        self.rnn = nn.LSTM(self.embedding_size, rnn_hidden_size, self.rnn_num_layers, bidirectional=True, batch_first=True)
         self.rnn_dp = WeightDrop(self.rnn, ['weight_hh_l0'], self.lstm_dropout_rate, self.variational_dropout)
 
-        # Define class head
-        if self.class_head_name == 'concat':
-            self.class_head = ConcatClassHead(self.embedding_size, self.classhead_num_layers, self.classhead_dropout_rate, self.variational_dropout)
-        elif self.class_head_name == 'mean':
-            self.class_head = MeanClassHead(self.embedding_size, self.classhead_num_layers, self.classhead_dropout_rate, self.variational_dropout)
-        elif self.class_head_name == 'mult':
-            self.class_head = MultClassHead(self.embedding_size, self.classhead_num_layers, self.classhead_dropout_rate, self.variational_dropout)
-        elif self.class_head_name == 'manhattan':
-            self.class_head = ManhattanClassHead()
-        else:
+        # Define classificstion head
+        class_head_map = {
+            'concat': ConcatClassHead,
+            'mean': MeanClassHead,
+            'mult': MultClassHead,
+            'manhattan': ManhattanClassHead
+        }
+        if self.class_head_name not in class_head_map:
             raise ValueError(f"Unexpected value for `class_head_name`: {self.class_head_name}")
 
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.class_head = class_head_map[self.class_head_name](
+            self.embedding_size, self.classhead_num_layers, self.classhead_dropout_rate, self.variational_dropout
+        )
+
         self.embedding = nn.Embedding(self.num_codes, self.embedding_size, padding_idx=0)
     
-    # TODO: Hat das keine Vorimplementierung in pytorch oder lightning?
     def embedding_dropout(self, embed, words, p=0.2):
         """
         Apply dropout to the embedding layer.
@@ -190,7 +205,7 @@ class LSTMAWD(pl.LightningModule):
         x = x[:, :max_len]
 
         x = self.embedding_dropout(self.embedding, x, p=self.embedding_droprate)
-        output, (hn, cn) = self.rnn_dp(x)
+        _, (hn, _) = self.rnn_dp(x)
 
         if self.bi_reduce == 'concat':
             # Concat both directions
@@ -214,31 +229,40 @@ class LSTMAWD(pl.LightningModule):
         targets = targets.reshape((-1, 1)).float()
         predictions = self.class_head(self._reduce(inputs_A), self._reduce(inputs_B)).float()
         return predictions
-
-    def _single_step(self, batch):
-        inputs_A, inputs_B, targets = batch
-        predictions = self.forward(inputs_A, inputs_B)
+    
+    def _calculate_loss(self, z_a, z_b, predictions, targets):
+        # Compute standard BCE loss
         loss = self.criterion(predictions, targets)
         
         if self.class_head_name == 'manhattan':
-            d = (self._reduce(inputs_A) - self._reduce(inputs_B)).pow(2)
-            indicator = (2 * targets - 1) * -1
+            # Compute distance regularization term
+            d = (z_a - z_b).pow(2)  # Squared differences
+            indicator = (2 * targets - 1) * -1  # Indicator for regularization
             d_reg = max(0, torch.mean(indicator * d))
-            delay = 0
-            min_contrib = 0.1
-            if self.current_epoch > delay:
-                interact_alpha = max(self.current_epoch / (self.num_epochs // 2), min_contrib)
-            else:
-                interact_alpha = min_contrib
+            interact_alpha = max(self.current_epoch / (self.num_epochs // 2), 0.1) if self.current_epoch > 0 else 0.1
             reg_alpha = 1 - interact_alpha
             loss = reg_alpha * d_reg + loss * interact_alpha
 
+        return loss
+
+    def _single_step(self, batch):
+        inputs_A, inputs_B, targets = batch
+        # Get embeddings
+        z_a = self._reduce(inputs_A)
+        z_b = self._reduce(inputs_B)
+        
+        # Get predictions
+        predictions = self.class_head(z_a, z_b).float()
+        
+        # Calculate loss
+        loss = self._calculate_loss(z_a, z_b, predictions, targets)
+        
         return targets, predictions, loss
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         # Access optimizer
         opt = self.optimizers() if self.lr_scaling else None
-        
+
         if self.lr_scaling:
             # Reset gradients
             opt.zero_grad()
@@ -249,14 +273,14 @@ class LSTMAWD(pl.LightningModule):
         else:
             self.rnn_dp.requires_grad_(True)
 
-        # get loss
-        targets, predictions, train_loss = self._single_step(batch)
+        # Get loss
+        _, _, train_loss = self._single_step(batch)
 
         # Log loss
         self.log('train_loss', train_loss, on_step=False, on_epoch=True)
         self.log('train_loss_step', train_loss, on_step=True, on_epoch=False, prog_bar=self.lr_scaling)
 
-        inputs_A, inputs_B, targets = batch
+        inputs_A, inputs_B, _ = batch
         if self.lr_scaling:
             # Adjust learning rate based on sequence lengths
             max_len_a = torch.max(torch.sum(inputs_A != 0, axis=1))
@@ -324,6 +348,7 @@ class LSTMAWD(pl.LightningModule):
         self._log_metrics('test')
         self._reset_metrics()
     
+    # optimizer
     def configure_optimizers(self) -> tuple:
         if self.optimizer_type == 'ranger21':
             optimizer = Ranger21(
