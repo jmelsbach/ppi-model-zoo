@@ -183,8 +183,8 @@ class LSTMAWD(pl.LightningModule):
 
         return F.embedding(words, masked_embed_weight, embed.padding_idx, embed.max_norm, embed.norm_type,
                         embed.scale_grad_by_freq, embed.sparse)
-
-    def forward(self, x):
+    
+    def _reduce(self, x) -> torch.Tensor:
         # Truncate to the longest sequence in batch
         max_len = torch.max(torch.sum(x != 0, axis=1))
         x = x[:, :max_len]
@@ -210,18 +210,18 @@ class LSTMAWD(pl.LightningModule):
 
         return x
 
-
+    def forward(self, inputs_A, inputs_B) -> torch.Tensor:
+        targets = targets.reshape((-1, 1)).float()
+        predictions = self.class_head(self._reduce(inputs_A), self._reduce(inputs_B)).float()
+        return predictions
 
     def _single_step(self, batch):
         inputs_A, inputs_B, targets = batch
-        z_a = self(inputs_A)
-        z_b = self(inputs_B)
-        targets = targets.reshape((-1, 1)).float()
-        predictions = self.class_head(z_a, z_b).float()
+        predictions = self.forward(inputs_A, inputs_B)
         loss = self.criterion(predictions, targets)
         
         if self.class_head_name == 'manhattan':
-            d = (z_a - z_b).pow(2)
+            d = (self._reduce(inputs_A) - self._reduce(inputs_B)).pow(2)
             indicator = (2 * targets - 1) * -1
             d_reg = max(0, torch.mean(indicator * d))
             delay = 0
@@ -249,16 +249,18 @@ class LSTMAWD(pl.LightningModule):
         else:
             self.rnn_dp.requires_grad_(True)
 
+        # get loss
         targets, predictions, train_loss = self._single_step(batch)
 
         # Log loss
         self.log('train_loss', train_loss, on_step=False, on_epoch=True)
         self.log('train_loss_step', train_loss, on_step=True, on_epoch=False, prog_bar=self.lr_scaling)
 
+        inputs_A, inputs_B, targets = batch
         if self.lr_scaling:
             # Adjust learning rate based on sequence lengths
-            max_len_a = torch.max(torch.sum(a != 0, axis=1))
-            max_len_b = torch.max(torch.sum(b != 0, axis=1))
+            max_len_a = torch.max(torch.sum(inputs_A != 0, axis=1))
+            max_len_b = torch.max(torch.sum(inputs_B != 0, axis=1))
             new_lr = self.lr_base / (max_len_a + max_len_b)
             for pg in opt.param_groups:
                 pg['lr'] = new_lr
