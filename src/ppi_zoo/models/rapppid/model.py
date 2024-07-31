@@ -210,10 +210,12 @@ class LSTMAWD(pl.LightningModule):
 
         return x
 
+
+
     def _single_step(self, batch):
-        a, b, targets = batch
-        z_a = self(a)
-        z_b = self(b)
+        inputs_A, inputs_B, targets = batch
+        z_a = self(inputs_A)
+        z_b = self(inputs_B)
         targets = targets.reshape((-1, 1)).float()
         predictions = self.class_head(z_a, z_b).float()
         loss = self.criterion(predictions, targets)
@@ -222,22 +224,13 @@ class LSTMAWD(pl.LightningModule):
             d = (z_a - z_b).pow(2)
             indicator = (2 * targets - 1) * -1
             d_reg = max(0, torch.mean(indicator * d))
-
             delay = 0
             min_contrib = 0.1
-
             if self.current_epoch > delay:
                 interact_alpha = max(self.current_epoch / (self.num_epochs // 2), min_contrib)
             else:
                 interact_alpha = min_contrib
-
             reg_alpha = 1 - interact_alpha
-
-            self.log('reg_alpha', reg_alpha)
-            self.log('d_reg', d_reg)
-            self.log('interact_alpha', interact_alpha)
-            self.log('interact_loss', loss)
-
             loss = reg_alpha * d_reg + loss * interact_alpha
 
         return targets, predictions, loss
