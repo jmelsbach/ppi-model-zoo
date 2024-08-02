@@ -13,6 +13,7 @@ import ppi_zoo.metrics.loggers as loggers
 METRIC_ENUM = {
     'accuracy': { 'metric': Accuracy(task='binary') },
     'f1': { 'metric': F1Score(task='binary') },
+    'weighted_f1': { 'metric': F1Score(task='binary', average="weighted") },
     'recall': { 'metric': Recall(task='binary') },
     'precision': { 'metric': Precision(task='binary') },
     'auroc': { 'metric': AUROC(task='binary') },

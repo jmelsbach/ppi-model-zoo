@@ -91,11 +91,10 @@ class STEP(L.LightningModule):
         
         self._metrics = build_metrics(nr_dataloaders)
 
-
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         _, _, train_loss = self._single_step(batch)
-        self.log('train_loss', train_loss)
-        self.log('frozen', self._frozen)
+        self.log('train_loss', train_loss, sync_dist=True)
+        self.log('frozen', self._frozen, sync_dist=True)
 
         return train_loss
 
@@ -106,7 +105,7 @@ class STEP(L.LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
         targets, predictions, val_loss = self._single_step(batch)
 
-        self.log(f'val_loss', val_loss)
+        self.log(f'val_loss', val_loss, sync_dist=True)
         self._update_metrics(
             predictions,
             targets,
@@ -122,7 +121,7 @@ class STEP(L.LightningModule):
     def test_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
         targets, predictions, test_loss = self._single_step(batch)
 
-        self.log(f'test_loss', test_loss)
+        self.log(f'test_loss', test_loss, sync_dist=True)
         self._update_metrics(
             predictions,
             targets,
@@ -273,16 +272,22 @@ class STEP(L.LightningModule):
             metric_module.metric.update(predictions, targets)
         
     def _log_metrics(self, stage: str):
+        self._debug_print(f'Logging metrics for stage: {stage}')
         metric_module: MetricModule
         for metric_module in self._metrics:
             if metric_module.log:
-                metric_module.log(self.logger, metric_module.metric, metric_module.dataloader_idx)
+                metric_module.log(self, metric_module.metric, metric_module.dataloader_idx)
                 continue
             
             key = f'{stage}_{metric_module.name}'
-            if metric_module.dataloader_idx:
+            
+            if metric_module.dataloader_idx is not None:
                 key = f'{key}_{metric_module.dataloader_idx}'
-            self.log(key, metric_module.metric.compute())
+
+            value = metric_module.metric.compute()
+
+            self._debug_print(f'Metric {metric_module.name} scored value of {value} on T{metric_module.dataloader_idx + 1} ')
+            self.log(key, value, sync_dist=True)
 
     def _reset_metrics(self):
         metric_module: MetricModule
@@ -382,3 +387,9 @@ class STEP(L.LightningModule):
         num_steps = dataset_size * self.trainer.max_epochs
 
         return num_steps
+    
+    def _debug_print(self, message):
+        if self.global_rank != 0:
+            return
+        
+        print(message)
