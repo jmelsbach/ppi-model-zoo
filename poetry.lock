@@ -2309,6 +2309,22 @@ files = [
 cffi = {version = "*", markers = "implementation_name == \"pypy\""}
 
 [[package]]
+name = "ranger21"
+version = "0.1.0"
+description = "A rewrite of the Ranger deep learning optimizer to integrate newer optimization ideas"
+optional = false
+python-versions = ">=3.10,<4.0"
+files = [
+    {file = "ranger21-0.1.0-py3-none-any.whl", hash = "sha256:017cfd33853ec8d7b9ba2372de922b26c6111801b5bb1ec5d03b68609183980f"},
+    {file = "ranger21-0.1.0.tar.gz", hash = "sha256:a78b702e142376172fdc02669861e7eb6cae93aa0c965dea344626c004d4a7e1"},
+]
+
+[package.dependencies]
+matplotlib = "*"
+numpy = "*"
+torch = "*"
+
+[[package]]
 name = "regex"
 version = "2024.5.15"
 description = "Alternative regular expression module, to replace re."
@@ -3499,4 +3515,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "54a8137bb565c5f336d2fb78b48f48be1a45a21a0afba2b429dfe67019ff3584"
+content-hash = "5b9280cb32c6aed23297acb21854cbee40787bad49769be5896761244ff69bc6"
