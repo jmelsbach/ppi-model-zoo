@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.nn import Parameter
+import lightning.pytorch as L
 import pytorch_lightning as pl
 
 from ppi_zoo.utils.metric_builder import build_metrics
@@ -182,7 +184,7 @@ class WeightDrop(torch.nn.Module):
         return self.module.forward(*args)
 
 
-class LSTMAWD(pl.LightningModule):
+class LSTMAWD(L.LightningModule):
     def __init__(
         self,
         num_codes: int,
@@ -213,7 +215,9 @@ class LSTMAWD(pl.LightningModule):
         self.lr_scaling = lr_scaling
         self.trunc_len = trunc_len
         self.num_epochs = num_epochs
+        self.steps_per_epoch = steps_per_epoch
         self.lr_base = lr
+        self.lr = lr
         self.embedding_droprate = embedding_droprate
         self.weight_decay = weight_decay
         self.frozen_epochs = frozen_epochs
