@@ -1,6 +1,6 @@
 from lightning.pytorch.cli import LightningCLI
-from ...src.ppi_zoo.datasets.StepGoogleDriveData import StepGoogleDriveDataModule
-from ...src.ppi_zoo.models.step.model import STEP
+from ..src.ppi_zoo.datasets.StepGoogleDriveData import StepGoogleDriveDataModule
+from ..src.ppi_zoo.models.step.model import STEP
 from lightning.pytorch.loggers import WandbLogger
 
 def cli_main() -> None:
