@@ -171,3 +171,6 @@ config.yaml
 
 # trained models
 protein
+
+# temporal
+scripts/rapppid/spm.model
