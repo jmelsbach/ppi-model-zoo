@@ -234,7 +234,7 @@ class LSTMAWD(L.LightningModule):
         self.variational_dropout = variational_dropout
         self.num_codes = num_codes
 
-        self._build_model()
+        self._build_model() # creates an LSTM model and  wraps this by WeightDrop
 
         # Manual optimization if lr_scaling is enabled
         if lr_scaling:
@@ -294,10 +294,10 @@ class LSTMAWD(L.LightningModule):
     
     def _reduce(self, x) -> torch.Tensor:
         # Truncate to the longest sequence in batch
-        max_len = torch.max(torch.sum(x != 0, axis=1))
-        x = x[:, :max_len]
+        max_len = torch.max(torch.sum(x != 0, axis=1)) # aminosäure = "ABACAD" -> x = [1,2, 6, ..., 0, 0, 0, 0]
+        x = x[:, :max_len] # reduces shape from torch.Size([16, 1000]) to torch.Size([16, 756]) Note: can also be different size as 756
 
-        x = self.embedding_dropout(self.embedding, x, p=self.embedding_droprate)
+        x = self.embedding_dropout(self.embedding, x, p=self.embedding_droprate) # creates torch.Size([16, 701, 64])
         _, (hn, _) = self.rnn_dp(x)
 
         if self.bi_reduce == 'concat':
@@ -339,7 +339,7 @@ class LSTMAWD(L.LightningModule):
         return loss
 
     def _single_step(self, batch):
-        inputs_A, inputs_B, targets = batch
+        inputs_A, inputs_B, targets = batch # inputs.shape = torch.Size([16, 1000])
         # Get embeddings
         z_a = self._reduce(inputs_A)
         z_b = self._reduce(inputs_B)
