@@ -304,14 +304,15 @@ class LSTMAWD(L.LightningModule):
             self.embedding_size, self.classhead_num_layers, self.classhead_dropout_rate, self.variational_dropout
         )
 
-        self.embedding = nn.Embedding(self.num_codes, self.embedding_size, padding_idx=0)
+        self.embedding = nn.Embedding(self.num_codes, self.embedding_size, padding_idx=0) # embeddings for each token are learned in the model training
     
     def embedding_dropout(self, embed, words, p=0.2):
         """
-        Apply dropout to the embedding layer.
+        Apply dropout to the embedding layer. 
+        The embedding dropout layer randomly assigns random tokens from the total vocabulary to zero
         
         Args:
-            embed (nn.Embedding): The embedding layer.
+            embed (nn.Embedding): The embedding layer. It is a matrix where each row corresponds to a vector representation (embedding) for a token.
             words (torch.Tensor): Input tensor containing word indices.
             p (float): Dropout probability.
 
@@ -326,7 +327,7 @@ class LSTMAWD(L.LightningModule):
             mask = embed.weight.data.new_empty((embed.weight.size(0), 1)).bernoulli_(1 - p).expand_as(embed.weight) / (1 - p)
             embed_weight = mask * embed.weight
 
-        return F.embedding(words, embed_weight, padding_idx, embed.max_norm, embed.norm_type,
+        return F.embedding(words, embed_weight, padding_idx, embed.max_norm, embed.norm_type, # this creates an embedding for each token with size 64
                         embed.scale_grad_by_freq, embed.sparse)
     
     def _reduce(self, x) -> torch.Tensor:
