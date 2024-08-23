@@ -266,6 +266,17 @@ class LSTMAWD(L.LightningModule):
             self.automatic_optimization = False
 
         self.criterion = nn.BCEWithLogitsLoss()
+    
+    def setup(self, stage=None): # todo: needs to be adjusted
+        datamodule = self.trainer.datamodule
+        nr_dataloaders = 1
+        if stage == 'fit' or stage == 'validate':
+            nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
+            
+        if stage == 'test' or stage is None:
+            nr_dataloaders = len(datamodule.test_dataloader()) if type(datamodule.test_dataloader()) is list else 1
+        
+        self._metrics = build_metrics(nr_dataloaders)
 
     def _build_model(self) -> None:
         # Define layers and components
