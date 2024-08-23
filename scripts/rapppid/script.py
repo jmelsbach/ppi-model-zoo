@@ -2,7 +2,7 @@ from ppi_zoo.datasets.RapppidDataset import RapppidDataModule
 from ppi_zoo.models.rapppid.model import LSTMAWD
 from lightning.pytorch import Trainer
 
-data_module = RapppidDataModule(data_dir = '/home/mwlcek-asim/repos/ppi-model-zoo/.data', file_name = 'benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv', tokenizer_file = '/home/mwlcek-asim/repos/ppi-model-zoo/scripts/rapppid/spm.model', with_validation = True, truncate_len = 1000)
+data_module = RapppidDataModule(data_dir = '.data', file_name = 'benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv', tokenizer_file = 'scripts/rapppid/spm.model', with_validation = True, truncate_len = 1000)
 
 model = LSTMAWD(num_codes=1, embedding_size=64, steps_per_epoch=1, num_epochs=1, lstm_dropout_rate=0.3,
                 classhead_dropout_rate=0.2, rnn_num_layers=2, classhead_num_layers=2, lr=0.01, 
