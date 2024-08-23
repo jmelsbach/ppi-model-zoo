@@ -9,8 +9,14 @@ import pytorch_lightning as pl
 from ppi_zoo.utils.metric_builder import build_metrics
 from ppi_zoo.metrics.MetricModule import MetricModule
 from ranger21 import Ranger21
+    
+class Mish(nn.Module):
+    def __init__(self):
+        super().__init__()
 
-
+    def forward(self, x):
+        return x * (torch.tanh(F.softplus(x)))
+    
 class MeanClassHead(nn.Module):
     def __init__(self, embedding_size, num_layers, weight_drop, variational):
         super(MeanClassHead, self).__init__()
@@ -21,6 +27,7 @@ class MeanClassHead(nn.Module):
         elif num_layers == 2:
             self.fc = nn.Sequential(
                         nn.Linear(embedding_size, embedding_size//2),
+                        Mish(),
                         nn.Linear(embedding_size//2, 1))
         else:
             raise NotImplementedError
@@ -28,8 +35,6 @@ class MeanClassHead(nn.Module):
     def forward(self, z_a, z_b):
         z = (z_a + z_b)/2
         z = self.fc(z)
-        if hasattr(self, 'nl'):
-            z = z * torch.tanh(F.softplus(z))
         return z
 
 class MultClassHead(nn.Module):
@@ -44,6 +49,7 @@ class MultClassHead(nn.Module):
                         WeightDrop(nn.Linear(embedding_size, embedding_size//2), 
                                     ['weight'], dropout=weight_drop, 
                                     variational=variational),
+                        Mish(),
                         WeightDrop(nn.Linear(embedding_size//2, 1), 
                                     ['weight'], dropout=weight_drop, 
                                     variational=variational)
@@ -51,13 +57,19 @@ class MultClassHead(nn.Module):
         else:
             raise NotImplementedError
 
+        self.nl = Mish()
+
     def forward(self, z_a, z_b):
+
         z_a = (z_a - z_a.mean()) / z_a.std()
         z_b = (z_b - z_b.mean()) / z_b.std()
+        
         z = z_a * z_b
-        z = z * torch.tanh(F.softplus(z))
+
+        z = self.nl(z)
         z = self.fc(z)
-        return z  
+
+        return z
 
 class ConcatClassHead(nn.Module):
     def __init__(self, embedding_size, num_layers, weight_drop, variational):
@@ -69,18 +81,30 @@ class ConcatClassHead(nn.Module):
             self.fc = nn.Sequential(
                         nn.Linear(embedding_size*2, embedding_size//2),
                         nn.Dropout(weight_drop),
+                        Mish(),
                         nn.Linear(embedding_size//2, 1))
         else:
             raise NotImplementedError
 
     def forward(self, z_a, z_b):
+        
         z_ab = torch.cat((z_a, z_b), axis=1)
         z = self.fc(z_ab)
-        if hasattr(self, 'nl'):
-            z = z * torch.tanh(F.softplus(z))
+
         return z
 
 class ManhattanClassHead(nn.Module):
+    def __init__(self):
+        super(ManhattanClassHead, self).__init__()
+
+        self.fc = nn.Linear(1, 1)
+
+    def forward(self, z_a, z_b):
+        
+        distance = torch.sum(torch.abs(z_a-z_b), dim=1).unsqueeze(1)
+        y_logit = self.fc(distance)
+
+        return y_logit
     def __init__(self):
         super(ManhattanClassHead, self).__init__()
 
@@ -207,9 +231,10 @@ class LSTMAWD(L.LightningModule):
         optimizer_type: str
     ) -> None:
         super().__init__()
-        
+
         # Save hyperparameters
         self.save_hyperparameters()
+        #self.hparams.lr_scaling -> Zugriff ohne Initialisierung
         
         # Initialize training parameters
         self.lr_scaling = lr_scaling
@@ -282,14 +307,15 @@ class LSTMAWD(L.LightningModule):
         Returns:
             torch.Tensor: Embedding tensor with dropout applied.
         """
+
+        padding_idx = embed.padding_idx or -1
         if not self.training or p == 0:
-            return F.embedding(words, embed.weight, embed.padding_idx, embed.max_norm, embed.norm_type,
-                            embed.scale_grad_by_freq, embed.sparse)
+            embed_weight = embed.weight
+        else:
+            mask = embed.weight.data.new_empty((embed.weight.size(0), 1)).bernoulli_(1 - p).expand_as(embed.weight) / (1 - p)
+            embed_weight = mask * embed.weight
 
-        mask = embed.weight.data.new_empty((embed.weight.size(0), 1)).bernoulli_(1 - p).expand_as(embed.weight) / (1 - p)
-        masked_embed_weight = mask * embed.weight
-
-        return F.embedding(words, masked_embed_weight, embed.padding_idx, embed.max_norm, embed.norm_type,
+        return F.embedding(words, embed_weight, padding_idx, embed.max_norm, embed.norm_type,
                         embed.scale_grad_by_freq, embed.sparse)
     
     def _reduce(self, x) -> torch.Tensor:
@@ -298,20 +324,20 @@ class LSTMAWD(L.LightningModule):
         x = x[:, :max_len] # reduces shape from torch.Size([16, 1000]) to torch.Size([16, 756]) Note: can also be different size as 756
 
         x = self.embedding_dropout(self.embedding, x, p=self.embedding_droprate) # creates torch.Size([16, 701, 64])
-        _, (hn, _) = self.rnn_dp(x)
+        output, (hn, cn) = self.rnn_dp(x)
 
         if self.bi_reduce == 'concat':
             # Concat both directions
-            x = hn[-2:, :, :].permute(1, 0, 2).reshape(hn.size(1), -1)
+            x = hn[-2:,:,:].permute(1,0,2).flatten(start_dim=1)
         elif self.bi_reduce == 'max':
             # Max both directions
-            x = torch.max(hn[-2:, :, :], dim=0).values
+            x = torch.max(hn[-2:,:,:], dim=0).values
         elif self.bi_reduce == 'mean':
             # Mean both directions
-            x = torch.mean(hn[-2:, :, :], dim=0)
+            x = torch.mean(hn[-2:,:,:], dim=0)
         elif self.bi_reduce == 'last':
             # Just use last direction
-            x = hn[-1, :, :]
+            x = hn[-1:,:,:].squeeze(0)
 
         x = self.fc(x)
         x = self.nl(x)
@@ -353,11 +379,10 @@ class LSTMAWD(L.LightningModule):
         return targets, predictions, loss
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
-        # Access optimizer
-        opt = self.optimizers() if self.lr_scaling else None
 
         if self.lr_scaling:
             # Reset gradients
+            opt = self.optimizers()
             opt.zero_grad()
 
         # Freeze/Unfreeze layers based on current epoch
@@ -376,11 +401,10 @@ class LSTMAWD(L.LightningModule):
         inputs_A, inputs_B, _ = batch
         if self.lr_scaling:
             # Adjust learning rate based on sequence lengths
-            max_len_a = torch.max(torch.sum(inputs_A != 0, axis=1))
-            max_len_b = torch.max(torch.sum(inputs_B != 0, axis=1))
-            new_lr = self.lr_base / (max_len_a + max_len_b)
-            for pg in opt.param_groups:
-                pg['lr'] = new_lr
+            max_len_a = torch.max(torch.sum(inputs_A != 0, axis=1)).item()
+            max_len_b = torch.max(torch.sum(inputs_B != 0, axis=1)).item()
+            new_lr = self.lr_base * (max_len_a + max_len_b) / (self.trunc_len * 2)
+            opt.param_groups[0]['lr'] = new_lr
 
             # Backpropagation
             self.manual_backward(train_loss)
