@@ -377,7 +377,8 @@ class LSTMAWD(L.LightningModule):
         return loss
 
     def _single_step(self, batch):
-        inputs_A, inputs_B, targets = batch # inputs.shape = torch.Size([16, 1000])
+        inputs_A, inputs_B, targets = batch # inputs.shape = torch.Size([16, 1000]) = (batch, sequence representation)
+        targets = targets.reshape((-1,1)).float()
         # Get embeddings
         z_a = self._reduce(inputs_A)
         z_b = self._reduce(inputs_B)
@@ -428,7 +429,7 @@ class LSTMAWD(L.LightningModule):
     def _update_metrics(self, predictions, targets, metric_modules: list) -> None:
         metric_module: MetricModule
         for metric_module in metric_modules:
-            metric_module.metric.update(predictions, targets)
+            metric_module.metric.update(predictions, targets.int()) # todo: we need to find a consistent way in which we process our target tensor (best would be to always have the same format i.e. float())
     
     def _log_metrics(self, stage: str) -> None:
         metric_module: MetricModule
