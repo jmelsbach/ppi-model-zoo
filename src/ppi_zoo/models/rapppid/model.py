@@ -64,10 +64,10 @@ class MultClassHead(nn.Module):
         z_a = (z_a - z_a.mean()) / z_a.std()
         z_b = (z_b - z_b.mean()) / z_b.std()
         
-        z = z_a * z_b
+        z = z_a * z_b 
 
         z = self.nl(z)
-        z = self.fc(z)
+        z = self.fc(z) # todo: check if we apply sigmoid here? -> is that maybe done by the 
 
         return z
 
@@ -304,7 +304,7 @@ class LSTMAWD(L.LightningModule):
             self.embedding_size, self.classhead_num_layers, self.classhead_dropout_rate, self.variational_dropout
         )
 
-        self.embedding = nn.Embedding(self.num_codes, self.embedding_size, padding_idx=0) # embeddings for each token are learned in the model training
+        self.embedding = nn.Embedding(num_embeddings = self.num_codes, embedding_dim = self.embedding_size, padding_idx=0) # embeddings for each token are learned in the model training -> simple lookup table that stores embeddings of a fixed dictionary and size.
     
     def embedding_dropout(self, embed, words, p=0.2):
         """
@@ -336,7 +336,7 @@ class LSTMAWD(L.LightningModule):
         x = x[:, :max_len] # reduces shape from torch.Size([16, 1000]) to torch.Size([16, 756]) Note: can also be different size as 756
 
         x = self.embedding_dropout(self.embedding, x, p=self.embedding_droprate) # creates torch.Size([16, 701, 64])
-        output, (hn, cn) = self.rnn_dp(x)
+        output, (hn, cn) = self.rnn_dp(x) # hn.shape [4, batch_size, embeddings_size] -> This dimension represents the number of layers multiplied by the number of directions in the LSTM. Given that we have an LSTM with 2 layers and it’s bidirectional, this dimension is 2 (layers) * 2 (directions) = 4.
 
         if self.bi_reduce == 'concat':
             # Concat both directions
@@ -380,7 +380,7 @@ class LSTMAWD(L.LightningModule):
         inputs_A, inputs_B, targets = batch # inputs.shape = torch.Size([16, 1000]) = (batch, sequence representation)
         targets = targets.reshape((-1,1)).float()
         # Get embeddings
-        z_a = self._reduce(inputs_A)
+        z_a = self._reduce(inputs_A) 
         z_b = self._reduce(inputs_B)
         
         # Get predictions

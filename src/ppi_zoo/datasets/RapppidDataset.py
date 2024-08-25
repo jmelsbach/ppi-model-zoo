@@ -37,8 +37,8 @@ class RapppidDataset(Dataset):
         sequence_B = item['sequence_B']
         target = torch.as_tensor(item['isInteraction'], dtype=torch.long)
 
-        tokens_A = torch.as_tensor(self._tokenize(sequence_A), dtype=torch.long)
-        tokens_B = torch.as_tensor(self._tokenize(sequence_B), dtype=torch.long)
+        tokens_A = torch.as_tensor(self._tokenize(sequence_A), dtype=torch.long) # todo: do we need long here?
+        tokens_B = torch.as_tensor(self._tokenize(sequence_B), dtype=torch.long) # todo: do we need long here?
 
         return tokens_A, tokens_B, target
     
