@@ -269,6 +269,7 @@ class LSTMAWD(L.LightningModule):
     
     def setup(self, stage=None): # todo: needs to be adjusted
         datamodule = self.trainer.datamodule
+        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())/datamodule.hparams.batch_size
         nr_dataloaders = 1
         if stage == 'fit' or stage == 'validate':
             nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
