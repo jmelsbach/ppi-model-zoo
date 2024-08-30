@@ -6,6 +6,8 @@ from torch.nn import Parameter
 import lightning.pytorch as L
 import pytorch_lightning as pl
 
+from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score, roc_curve, precision_recall_curve
+
 from ppi_zoo.utils.metric_builder import build_metrics
 from ppi_zoo.metrics.MetricModule import MetricModule
 from ranger21 import Ranger21
@@ -269,7 +271,8 @@ class LSTMAWD(L.LightningModule):
     
     def setup(self, stage=None): # todo: needs to be adjusted
         datamodule = self.trainer.datamodule
-        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.hparams.batch_size
+        # todo: add this to model
+        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.batch_size # todo:CHANGED:datamodule.hparams.batch_size -> datamodule.batch_size todo: check if modulo is wanted here!
         nr_dataloaders = 1
         if stage == 'fit' or stage == 'validate':
             nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
@@ -282,8 +285,7 @@ class LSTMAWD(L.LightningModule):
     def _build_model(self) -> None:
         # Define layers and components
         self.fc = nn.Linear(self.embedding_size, self.embedding_size)
-        self.nl = lambda x: x * torch.tanh(F.softplus(x))
-
+        self.nl = Mish()
         # Define Recurrent Neural Network
         if self.bi_reduce not in ['concat', 'max', 'mean', 'last']:
             raise ValueError(f"Unexpected value for `bi_reduce`: {self.bi_reduce}")
@@ -325,7 +327,7 @@ class LSTMAWD(L.LightningModule):
         if not self.training or p == 0:
             embed_weight = embed.weight
         else:
-            mask = embed.weight.data.new_empty((embed.weight.size(0), 1)).bernoulli_(1 - p).expand_as(embed.weight) / (1 - p)
+            mask = embed.weight.data.new().resize_((embed.weight.size(0), 1)).bernoulli_(1 - p).expand_as(embed.weight) / (1 - p)
             embed_weight = mask * embed.weight
 
         return F.embedding(words, embed_weight, padding_idx, embed.max_norm, embed.norm_type, # this creates an embedding for each token with size 64
@@ -366,7 +368,7 @@ class LSTMAWD(L.LightningModule):
         # Compute standard BCE loss
         loss = self.criterion(predictions, targets)
         
-        if self.class_head_name == 'manhattan':
+        if self.class_head_name == 'manhattan': # todo: can be deleted is not used!
             # Compute distance regularization term
             d = (z_a - z_b).pow(2)  # Squared differences
             indicator = (2 * targets - 1) * -1  # Indicator for regularization
@@ -379,7 +381,7 @@ class LSTMAWD(L.LightningModule):
 
     def _single_step(self, batch):
         inputs_A, inputs_B, targets = batch # inputs.shape = torch.Size([16, 1000]) = (batch, sequence representation)
-        targets = targets.reshape((-1,1)).float()
+        targets = targets.unsqueeze(-1).float() #.reshape((-1,1)).float()
         # Get embeddings
         z_a = self._reduce(inputs_A) 
         z_b = self._reduce(inputs_B)
@@ -389,7 +391,6 @@ class LSTMAWD(L.LightningModule):
         
         # Calculate loss
         loss = self._calculate_loss(z_a, z_b, predictions, targets)
-        
         return targets, predictions, loss
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
@@ -406,11 +407,21 @@ class LSTMAWD(L.LightningModule):
             self.rnn_dp.requires_grad_(True)
 
         # Get loss
-        _, _, train_loss = self._single_step(batch)
+        targets, predictions, train_loss = self._single_step(batch)
+
+        # log acc
+        y_hat_probs = torch.sigmoid(predictions.flatten().cpu().detach()).numpy().astype(np.float32)
+        y_np = targets.flatten().cpu().detach().numpy().astype(int)
+        try:
+            acc = accuracy_score(y_np, (y_hat_probs > 0.5).astype(int))
+        except ValueError as e:
+            acc = -1
+        self.log('acc', acc, prog_bar=True) # todo
 
         # Log loss
-        self.log('train_loss', train_loss, on_step=False, on_epoch=True)
-        self.log('train_loss_step', train_loss, on_step=True, on_epoch=False, prog_bar=self.lr_scaling)
+        self.log('train_loss', train_loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('train_loss_step', train_loss, on_step=True, on_epoch=False, prog_bar=True)
+        
 
         inputs_A, inputs_B, _ = batch
         if self.lr_scaling:
@@ -442,7 +453,7 @@ class LSTMAWD(L.LightningModule):
             key = f'{stage}_{metric_module.name}'
             if metric_module.dataloader_idx:
                 key = f'{key}_{metric_module.dataloader_idx}'
-            self.log(key, metric_module.metric.compute())
+            self.log(key, metric_module.metric.compute(), prog_bar=True)
 
     def _reset_metrics(self) -> None:
         metric_module: MetricModule
@@ -454,17 +465,41 @@ class LSTMAWD(L.LightningModule):
         targets, predictions, val_loss = self._single_step(batch)
 
         self.log(f'val_loss', val_loss)
-        self._update_metrics(
-            predictions,
-            targets,
-            filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
-        )
+
+        y_hat_probs = torch.sigmoid(predictions.flatten().cpu().detach()).numpy().astype(np.float32)
+        y_np = targets.flatten().cpu().detach().numpy().astype(int)
+
+        try:
+            auroc = roc_auc_score(y_np, y_hat_probs)
+        except ValueError as e:
+            auroc = -1
+
+        try:
+            apr = average_precision_score(y_np, y_hat_probs)
+        except ValueError as e:
+            apr = -1
+
+        try:
+            acc = accuracy_score(y_np, (y_hat_probs > 0.5).astype(int))
+        except ValueError as e:
+            acc = -1
+
+        self.log('auroc', auroc) # todo
+        self.log('apr', apr) # todo
+        self.log('acc', acc, prog_bar=True) # todo
+       
+        # self._update_metrics(
+        #     predictions,
+        #     targets,
+        #     filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
+        # )
+        # self._log_metrics('val')
 
         return val_loss
     
-    def on_validation_epoch_end(self) -> None:
-        self._log_metrics('val')
-        self._reset_metrics()
+    #def on_validation_epoch_end(self) -> None:
+        #self._log_metrics('val')
+        #self._reset_metrics()
 
     def test_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
         targets, predictions, test_loss = self._single_step(batch)
