@@ -162,6 +162,8 @@ cython_debug/
 # data files
 .data/*.csv
 .data/*.pkl
+.data/*.gz 
+# todo: .data/*.gz can be deleted
 
 # lightning logs
 lightning_logs/
