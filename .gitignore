@@ -163,7 +163,7 @@ cython_debug/
 .data/*.csv
 .data/*.pkl
 .data/comparatives 
-# todo: .data/*.gz can be deleted
+# todo: .data/comparatives can be deleted (rapppid)
 
 # lightning logs
 lightning_logs/
