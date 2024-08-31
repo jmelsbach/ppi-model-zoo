@@ -40,16 +40,20 @@ fi
 
 args=()
 
-# standard arguments
-args+=( "--trainer.precision=16-mixed" )
+args+=( "--trainer.precision=16-mixed" ) # ? 
 args+=( "--trainer.logger=WandbLogger" )
-args+=( "--trainer.logger.project=protein" )
+args+=( "--trainer.logger.project=protein-rapppid" )
 args+=( "--trainer.logger.offline=false" )
-args+=( "--trainer.strategy=ddp_find_unused_parameters_true" )
+args+=( "--trainer.strategy=ddp_find_unused_parameters_true" ) # todo: warning: Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+args+=( "--trainer.callbacks+=StochasticWeightAveraging" )
+args+=( "--trainer.callbacks.swa_lrs=0.05" )
+args+=( "--trainer.callbacks.swa_epoch_start=3" )
+args+=( "--data.batch_size=80" )
+args+=( "--data.truncate_len=1500" )
+args+=( "--data.tokenizer_file=scripts/rapppid/spm.model" )
 args+=( "--data.data_dir=.data" )
 args+=( "--data.file_name=benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" )
-args+=( "--data.batch_size=2" )
-args+=( "--data.tokenizer=Rostlab/prot_bert_bfd" )
+args+=( "--model.optimizer_type=ranger21" )
 
 # arguments effected by DEBUG
 if [ "$DEBUG" = true ]; then
@@ -58,7 +62,7 @@ fi
 if [ "$DEBUG" = true ]; then
     args+=( "--data.max_len=2" )
 fi
-[[ $DEBUG = true ]] && EPOCHS=3 || EPOCHS=10
+[[ $DEBUG = true ]] && EPOCHS=3 || EPOCHS=100
 args+=( "--trainer.max_epochs=$EPOCHS" )
 
-python scripts/step/model_cli.py fit "${args[@]}"
+python scripts/rapppid/model_cli.py fit "${args[@]}"

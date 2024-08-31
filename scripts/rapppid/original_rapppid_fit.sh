@@ -51,11 +51,13 @@ args+=( "--trainer.callbacks.swa_epoch_start=3" )
 args+=( "--data.batch_size=80" )
 args+=( "--data.trunc_len=1500" )
 args+=( "--model.optimizer_type=ranger21" )
-
-# our data module arguments
-args+=( "--data.tokenizer_file=scripts/rapppid/spm.model" )
-args+=( "--data.data_dir=.data" )
-args+=( "--data.file_name=benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" )
+args+=( "--data.train_path=.data/comparatives/string_c3/train_pairs.pkl.gz" )
+args+=( "--data.val_path=.data/comparatives/string_c3/val_pairs.pkl.gz" )
+args+=( "--data.test_path=.data/comparatives/string_c3/test_pairs.pkl.gz" )
+args+=( "--data.seqs_path=.data/comparatives/string_c3/seqs.pkl.gz" )
+args+=( "--data.vocab_size= 250" )
+args+=( "--data.model_file=scripts/rapppid/spm.model" )
+args+=( "--data.seed=5353456" )
 
 # arguments effected by DEBUG
 if [ "$DEBUG" = true ]; then
@@ -67,4 +69,4 @@ fi
 [[ $DEBUG = true ]] && EPOCHS=3 || EPOCHS=100
 args+=( "--trainer.max_epochs=$EPOCHS" )
 
-python scripts/rapppid/model_cli.py fit "${args[@]}"
+python scripts/rapppid/original_rapppid_model_cli.py fit "${args[@]}"

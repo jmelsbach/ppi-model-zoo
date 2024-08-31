@@ -58,6 +58,7 @@ class RapppidDataModule(L.LightningDataModule):
         super().__init__()
         self.save_hyperparameters() # TODO: dont use save_hyperparameters
         self.tokenizer = sp.SentencePieceProcessor(model_file=tokenizer_file)
+        self.batch_size = batch_size
 
     def setup(self, stage=None):
         dataset = RapppidDataset(
@@ -95,15 +96,15 @@ class RapppidDataModule(L.LightningDataModule):
         self.test2_dataset = torch.utils.data.Subset(dataset, test2_indices)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.hparams.batch_size, shuffle=True, num_workers=self.hparams.num_workers)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.hparams.num_workers)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.hparams.batch_size, shuffle=False, num_workers=self.hparams.num_workers)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.hparams.num_workers)
 
     def test_dataloader(self):
         return [
-            DataLoader(self.test1_dataset, batch_size=self.hparams.batch_size,
+            DataLoader(self.test1_dataset, batch_size=self.batch_size,
                        shuffle=False, num_workers=self.hparams.num_workers),
-            DataLoader(self.test2_dataset, batch_size=self.hparams.batch_size,
+            DataLoader(self.test2_dataset, batch_size=self.batch_size,
                        shuffle=False, num_workers=self.hparams.num_workers),
         ]

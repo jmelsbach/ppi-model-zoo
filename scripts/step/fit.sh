@@ -53,4 +53,4 @@ fi
 [[ $DEBUG = true ]] && EPOCHS=3 || EPOCHS=10
 args+=( "--trainer.max_epochs=$EPOCHS" )
 
-python model_cli.py fit "${args[@]}"
+python scripts/step/model_cli.py fit "${args[@]}"
