@@ -1,7 +1,7 @@
 from lightning.pytorch.cli import LightningCLI
 from ppi_zoo.datasets.RapppidDataset import RapppidDataModule
 from ppi_zoo.models.rapppid.model import LSTMAWD
-from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.loggers import WandbLogger # TODO: do we need to import this?
 
 def cli_main() -> None:
     cli = LightningCLI(

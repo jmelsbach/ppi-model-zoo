@@ -58,6 +58,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/scripts/rapppid/model_cli.py",
+            "justMyCode": false,
             "args": [
                 "fit",
                 "--trainer.precision=16-mixed",
