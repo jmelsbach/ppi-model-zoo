@@ -44,7 +44,7 @@ args=()
 # what about callbacks=[StochasticWeightAveraging(0.05)]
 args+=( "--trainer.precision=16-mixed" ) # ? 
 args+=( "--trainer.logger=WandbLogger" )
-args+=( "--trainer.logger.project=protein" )
+args+=( "--trainer.logger.project=protein-rapppid" )
 args+=( "--trainer.logger.offline=false" )
 args+=( "--trainer.strategy=ddp_find_unused_parameters_true" )
 args+=( "--data.data_dir=.data" )

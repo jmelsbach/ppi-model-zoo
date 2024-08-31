@@ -216,7 +216,7 @@ class LSTMAWD(L.LightningModule):
         num_codes: int = 250,
         embedding_size: int = 64,
         steps_per_epoch: int = None,
-        num_epochs: int = 25,
+        num_epochs: int = 100,
         lstm_dropout_rate: float = 0.3,
         classhead_dropout_rate: float = 0.2,
         rnn_num_layers: int = 2,
@@ -273,7 +273,7 @@ class LSTMAWD(L.LightningModule):
         datamodule = self.trainer.datamodule
         # todo: add this to model
         # todo: check if modulo is wanted here!
-        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.hparams.batch_size # todo:CHANGED datamodule.hparams.batch_size (our data)-> datamodule.batch_size (rapppid data) 
+        self.steps_per_epoch = self.steps_per_epoch if self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.hparams.batch_size # todo:CHANGED datamodule.hparams.batch_size (our data)-> datamodule.batch_size (rapppid data) 
         nr_dataloaders = 1
         if stage == 'fit' or stage == 'validate':
             nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
