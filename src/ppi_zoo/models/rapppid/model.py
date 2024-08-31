@@ -261,7 +261,7 @@ class LSTMAWD(L.LightningModule):
         self.variational_dropout = variational_dropout
         self.num_codes = num_codes
 
-        self._build_model() # creates an LSTM model and  wraps this by WeightDrop
+        self._build_model() # creates an LSTM model and wraps this by WeightDrop
 
         # Manual optimization if lr_scaling is enabled
         if lr_scaling:
@@ -269,10 +269,11 @@ class LSTMAWD(L.LightningModule):
 
         self.criterion = nn.BCEWithLogitsLoss()
     
-    def setup(self, stage=None): # todo: needs to be adjusted
+    def setup(self, stage=None): 
         datamodule = self.trainer.datamodule
         # todo: add this to model
-        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.batch_size # todo:CHANGED:datamodule.hparams.batch_size -> datamodule.batch_size todo: check if modulo is wanted here!
+        # todo: check if modulo is wanted here!
+        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.batch_size # todo:CHANGED datamodule.hparams.batch_size (our data)-> datamodule.batch_size (rapppid data) 
         nr_dataloaders = 1
         if stage == 'fit' or stage == 'validate':
             nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
@@ -408,7 +409,7 @@ class LSTMAWD(L.LightningModule):
 
         # Get loss
         targets, predictions, train_loss = self._single_step(batch)
-
+        ###################### todo: clean
         # log acc
         y_hat_probs = torch.sigmoid(predictions.flatten().cpu().detach()).numpy().astype(np.float32)
         y_np = targets.flatten().cpu().detach().numpy().astype(int)
@@ -417,6 +418,7 @@ class LSTMAWD(L.LightningModule):
         except ValueError as e:
             acc = -1
         self.log('acc', acc, prog_bar=True) # todo
+        #######################
 
         # Log loss
         self.log('train_loss', train_loss, on_step=False, on_epoch=True, prog_bar=True)
@@ -465,7 +467,7 @@ class LSTMAWD(L.LightningModule):
         targets, predictions, val_loss = self._single_step(batch)
 
         self.log(f'val_loss', val_loss)
-
+        ############################# todo clean
         y_hat_probs = torch.sigmoid(predictions.flatten().cpu().detach()).numpy().astype(np.float32)
         y_np = targets.flatten().cpu().detach().numpy().astype(int)
 
@@ -484,9 +486,10 @@ class LSTMAWD(L.LightningModule):
         except ValueError as e:
             acc = -1
 
-        self.log('auroc', auroc) # todo
-        self.log('apr', apr) # todo
-        self.log('acc', acc, prog_bar=True) # todo
+        self.log('auroc', auroc)
+        self.log('apr', apr)
+        self.log('acc', acc, prog_bar=True) 
+        ###################################
        
         # self._update_metrics(
         #     predictions,
@@ -496,7 +499,7 @@ class LSTMAWD(L.LightningModule):
         # self._log_metrics('val')
 
         return val_loss
-    
+    # todo: metrics adjustments
     #def on_validation_epoch_end(self) -> None:
         #self._log_metrics('val')
         #self._reset_metrics()
@@ -516,7 +519,7 @@ class LSTMAWD(L.LightningModule):
     
     # optimizer
     def configure_optimizers(self) -> tuple:
-        if self.optimizer_type == 'ranger21':
+        if self.optimizer_type == 'ranger21': # todo: check warning/erros with ranger
             optimizer = Ranger21(
                 self.parameters(), 
                 lr=self.lr, 
