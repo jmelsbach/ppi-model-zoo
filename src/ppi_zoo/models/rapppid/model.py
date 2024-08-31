@@ -213,24 +213,24 @@ class WeightDrop(torch.nn.Module):
 class LSTMAWD(L.LightningModule):
     def __init__(
         self,
-        num_codes: int,
-        embedding_size: int,
-        steps_per_epoch: int,
-        num_epochs: int,
-        lstm_dropout_rate: float,
-        classhead_dropout_rate: float,
-        rnn_num_layers: int,
-        classhead_num_layers: int,
-        lr: float,
-        weight_decay: float,
-        bi_reduce: str,
-        class_head_name: str,
-        variational_dropout: bool,
-        lr_scaling: bool,
-        trunc_len: int,
-        embedding_droprate: float,
-        frozen_epochs: int,
-        optimizer_type: str
+        num_codes: int = 250,
+        embedding_size: int = 64,
+        steps_per_epoch: int = None,
+        num_epochs: int = 25,
+        lstm_dropout_rate: float = 0.3,
+        classhead_dropout_rate: float = 0.2,
+        rnn_num_layers: int = 2,
+        classhead_num_layers: int = 2,
+        lr: float = 0.01,
+        weight_decay: float = 0.0001,
+        bi_reduce: str = 'last',
+        class_head_name: str = 'mult',
+        variational_dropout: bool = False,
+        lr_scaling: bool = False,
+        trunc_len: int = 1500,
+        embedding_droprate: float = 0.3,
+        frozen_epochs: int = 0,
+        optimizer_type: str = 'adam' # todo: originally rapppid implements 'ranger21'
     ) -> None:
         super().__init__()
 
@@ -273,7 +273,7 @@ class LSTMAWD(L.LightningModule):
         datamodule = self.trainer.datamodule
         # todo: add this to model
         # todo: check if modulo is wanted here!
-        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.batch_size # todo:CHANGED datamodule.hparams.batch_size (our data)-> datamodule.batch_size (rapppid data) 
+        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.hparams.batch_size # todo:CHANGED datamodule.hparams.batch_size (our data)-> datamodule.batch_size (rapppid data) 
         nr_dataloaders = 1
         if stage == 'fit' or stage == 'validate':
             nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
