@@ -273,7 +273,7 @@ class LSTMAWD(L.LightningModule):
         datamodule = self.trainer.datamodule
         # todo: add this to model
         # todo: check if modulo is wanted here!
-        self.steps_per_epoch = self.steps_per_epoch if self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.batch_size # todo:CHANGED datamodule.hparams.batch_size (our data)-> datamodule.batch_size (rapppid data) 
+        self.steps_per_epoch = self.steps_per_epoch if self.steps_per_epoch else len(datamodule.train_dataloader())
         nr_dataloaders = 1
         if stage == 'fit' or stage == 'validate':
             nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
@@ -458,12 +458,12 @@ class LSTMAWD(L.LightningModule):
     
     # optimizer
     def configure_optimizers(self) -> tuple:
-        if self.optimizer_type == 'ranger21': # todo: check warning/erros with ranger
+        if self.optimizer_type == 'ranger21':
             optimizer = Ranger21(
                 self.parameters(), 
                 lr=self.lr, 
                 weight_decay=self.weight_decay, 
-                num_batches_per_epoch=self.steps_per_epoch, 
+                num_batches_per_epoch=self.steps_per_epoch,
                 num_epochs=self.num_epochs,
                 warmdown_start_pct=0.72
             )
