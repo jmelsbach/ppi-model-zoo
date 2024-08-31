@@ -273,7 +273,7 @@ class LSTMAWD(L.LightningModule):
         datamodule = self.trainer.datamodule
         # todo: add this to model
         # todo: check if modulo is wanted here!
-        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.batch_size # todo:CHANGED datamodule.hparams.batch_size (our data)-> datamodule.batch_size (rapppid data) 
+        self.steps_per_epoch = self.steps_per_epoch if  self.steps_per_epoch else len(datamodule.train_dataloader())//datamodule.hparams.batch_size # todo:CHANGED datamodule.hparams.batch_size (our data)-> datamodule.batch_size (rapppid data) 
         nr_dataloaders = 1
         if stage == 'fit' or stage == 'validate':
             nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
@@ -407,26 +407,12 @@ class LSTMAWD(L.LightningModule):
         else:
             self.rnn_dp.requires_grad_(True)
 
-        # Get loss
-        targets, predictions, train_loss = self._single_step(batch)
-        ###################### todo: clean
-        # log acc
-        y_hat_probs = torch.sigmoid(predictions.flatten().cpu().detach()).numpy().astype(np.float32)
-        y_np = targets.flatten().cpu().detach().numpy().astype(int)
-        try:
-            acc = accuracy_score(y_np, (y_hat_probs > 0.5).astype(int))
-        except ValueError as e:
-            acc = -1
-        self.log('acc', acc, prog_bar=True) # todo
-        #######################
+        _, _, train_loss = self._single_step(batch)
 
-        # Log loss
-        self.log('train_loss', train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('train_loss_step', train_loss, on_step=True, on_epoch=False, prog_bar=True)
+        self.log('train_loss', train_loss)
         
-
-        inputs_A, inputs_B, _ = batch
         if self.lr_scaling:
+            inputs_A, inputs_B, _ = batch
             # Adjust learning rate based on sequence lengths
             max_len_a = torch.max(torch.sum(inputs_A != 0, axis=1)).item()
             max_len_b = torch.max(torch.sum(inputs_B != 0, axis=1)).item()
@@ -439,73 +425,26 @@ class LSTMAWD(L.LightningModule):
 
         return train_loss
     
-    # metrics functions
-    def _update_metrics(self, predictions, targets, metric_modules: list) -> None:
-        metric_module: MetricModule
-        for metric_module in metric_modules:
-            metric_module.metric.update(predictions, targets.int()) # todo: we need to find a consistent way in which we process our target tensor (best would be to always have the same format i.e. float())
-    
-    def _log_metrics(self, stage: str) -> None:
-        metric_module: MetricModule
-        for metric_module in self._metrics:
-            if metric_module.log:
-                metric_module.log(self.logger, metric_module.metric, metric_module.dataloader_idx)
-                continue
-            
-            key = f'{stage}_{metric_module.name}'
-            if metric_module.dataloader_idx:
-                key = f'{key}_{metric_module.dataloader_idx}'
-            self.log(key, metric_module.metric.compute(), prog_bar=True)
-
-    def _reset_metrics(self) -> None:
-        metric_module: MetricModule
-        for metric_module in self._metrics:
-            metric_module.metric.reset()
-
     # validation and testing
     def validation_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
         targets, predictions, val_loss = self._single_step(batch)
 
         self.log(f'val_loss', val_loss)
-        ############################# todo clean
-        y_hat_probs = torch.sigmoid(predictions.flatten().cpu().detach()).numpy().astype(np.float32)
-        y_np = targets.flatten().cpu().detach().numpy().astype(int)
-
-        try:
-            auroc = roc_auc_score(y_np, y_hat_probs)
-        except ValueError as e:
-            auroc = -1
-
-        try:
-            apr = average_precision_score(y_np, y_hat_probs)
-        except ValueError as e:
-            apr = -1
-
-        try:
-            acc = accuracy_score(y_np, (y_hat_probs > 0.5).astype(int))
-        except ValueError as e:
-            acc = -1
-
-        self.log('auroc', auroc)
-        self.log('apr', apr)
-        self.log('acc', acc, prog_bar=True) 
-        ###################################
-       
-        # self._update_metrics(
-        #     predictions,
-        #     targets,
-        #     filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
-        # )
-        # self._log_metrics('val')
+        self._update_metrics(
+            predictions,
+            targets,
+            filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
+        )
 
         return val_loss
-    # todo: metrics adjustments
-    #def on_validation_epoch_end(self) -> None:
-        #self._log_metrics('val')
-        #self._reset_metrics()
+
+    def on_validation_epoch_end(self) -> None:
+        self._log_metrics('val')
+        self._reset_metrics()
 
     def test_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
         targets, predictions, test_loss = self._single_step(batch)
+
         self.log(f'test_loss', test_loss)
         self._update_metrics(
             predictions,
@@ -532,3 +471,26 @@ class LSTMAWD(L.LightningModule):
             optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         
         return optimizer
+    
+    # metrics functions
+    def _update_metrics(self, predictions, targets, metric_modules: list) -> None:
+        metric_module: MetricModule
+        for metric_module in metric_modules:
+            metric_module.metric.update(predictions, targets.int()) # todo: we need to find a consistent way in which we process our target tensor (best would be to always have the same format i.e. float())
+    
+    def _log_metrics(self, stage: str) -> None:
+        metric_module: MetricModule
+        for metric_module in self._metrics:
+            if metric_module.log:
+                metric_module.log(self.logger, metric_module.metric, metric_module.dataloader_idx)
+                continue
+            
+            key = f'{stage}_{metric_module.name}'
+            if metric_module.dataloader_idx:
+                key = f'{key}_{metric_module.dataloader_idx}'
+            self.log(key, metric_module.metric.compute(), prog_bar=True)
+
+    def _reset_metrics(self) -> None:
+        metric_module: MetricModule
+        for metric_module in self._metrics:
+            metric_module.metric.reset()

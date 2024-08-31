@@ -1,24 +1,36 @@
 {
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-      {
-        "name": "Python: model_cli.py",
-        "type": "python",
-        "request": "launch",
-        "program": "${workspaceFolder}/scripts/step/model_cli.py",
-        "args": [
-          "fit",
-          "--trainer.max_epochs=2",
-          "--trainer.strategy=ddp_find_unused_parameters_true",
-          "--data.data_dir=.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv",
-          "--data.batch_size=2",
-          "--data.tokenizer=Rostlab/prot_bert_bfd",
-          "--data.max_len=1024",
-          "--model.nr_frozen_epochs=0"
-        ],
-        "cwd": "${workspaceFolder}",
-        "env": {},
-        "console": "integratedTerminal"
-      }
+        {
+            "name": "Python: STEP Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/step/model_cli.py",
+            "args": [
+                "fit",
+                "--trainer.max_epochs=2",
+                "--trainer.strategy=ddp_find_unused_parameters_true",
+                "--data.data_dir=.data/benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv",
+                "--data.batch_size=2",
+                "--data.tokenizer=Rostlab/prot_bert_bfd",
+                "--data.max_len=1024",
+                "--model.nr_frozen_epochs=0"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {},
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: RAPPPID Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/rapppid/script.py",
+            "cwd": "${workspaceFolder}",
+            "env": {},
+            "console": "integratedTerminal"
+        }
     ]
-  }
+}

@@ -56,7 +56,7 @@ class RapppidDataModule(L.LightningDataModule):
         truncate_len: int = None
     ):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters() # TODO: dont use save_hyperparameters
         self.tokenizer = sp.SentencePieceProcessor(model_file=tokenizer_file)
 
     def setup(self, stage=None):
