@@ -8,6 +8,8 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import sentencepiece as sp
 import pytorch_lightning as pl
+import os
+import sys
 # import tables as tb
 
 
@@ -91,10 +93,10 @@ def encode_seq(seq):
 
 
 
-class RapppidDataModule(L.LightningDataModule):
+class OriginalRapppidDataModule(L.LightningDataModule):
 
-    def __init__(self, batch_size: int, train_path: Path, val_path: Path, test_path: Path, seqs_path: Path,
-                 trunc_len: int, workers: int, vocab_size: int, model_file: str, seed: int):
+    def __init__(self, batch_size: int, train_path: str, val_path: str, test_path: str, seqs_path: str,
+                 trunc_len: int, vocab_size: int, model_file: str, seed: int, workers: int = None):
 
         super().__init__()
         
@@ -111,13 +113,21 @@ class RapppidDataModule(L.LightningDataModule):
         self.dataset_test = None
         
         self.trunc_len = trunc_len
-        self.workers = workers
 
         self.model_file = model_file
         
         self.train = []
         self.test = []
         self.seqs = []
+
+        self.workers =  workers if workers else max(1, self._getThreads()-2)
+
+    def _getThreads(self):
+        """ Returns the number of available threads on a posix/win based system """
+        if sys.platform == 'win32':
+            return (int)(os.environ['NUMBER_OF_PROCESSORS'])
+        else:
+            return (int)(os.popen('grep -c cores /proc/cpuinfo').read())
 
     def setup(self, stage=None):
 
