@@ -1,4 +1,4 @@
-from ppi_zoo.datasets.OriginalRapppidDataset import RapppidDataModule
+from ppi_zoo.datasets.OriginalRapppidDataset import OriginalRapppidDataModule
 from ppi_zoo.models.rapppid.model import LSTMAWD
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import StochasticWeightAveraging
@@ -16,7 +16,7 @@ def _getThreads():
 workers =  max(1, _getThreads()-2)
 
 
-data_module = RapppidDataModule(batch_size = 80, train_path = '.data/comparatives/string_c3/train_pairs.pkl.gz', val_path ='.data/comparatives/string_c3/val_pairs.pkl.gz', test_path = '.data/comparatives/string_c3/test_pairs.pkl.gz', seqs_path = '.data/comparatives/string_c3/seqs.pkl.gz', 
+data_module = OriginalRapppidDataModule(batch_size = 80, train_path = '.data/comparatives/string_c3/train_pairs.pkl.gz', val_path ='.data/comparatives/string_c3/val_pairs.pkl.gz', test_path = '.data/comparatives/string_c3/test_pairs.pkl.gz', seqs_path = '.data/comparatives/string_c3/seqs.pkl.gz', 
                                 trunc_len = 1500, workers = workers, vocab_size = 250, model_file='scripts/rapppid/spm.model', seed=5353456)
 model = LSTMAWD()
 
