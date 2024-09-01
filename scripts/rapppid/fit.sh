@@ -21,7 +21,7 @@ usage() {
 while [ "$#" -gt 0 ]; do
     case "$1" in
         -e | --debug)
-            DEBUG=true # [TODO] PTL -> trainer flag
+            DEBUG=true
             ;;
         *)
             echo "Unknown option: $1"

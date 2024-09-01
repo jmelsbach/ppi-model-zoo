@@ -271,8 +271,6 @@ class LSTMAWD(L.LightningModule):
     
     def setup(self, stage=None): 
         datamodule = self.trainer.datamodule
-        # todo: add this to model
-        # todo: check if modulo is wanted here!
         self.steps_per_epoch = self.steps_per_epoch if self.steps_per_epoch else len(datamodule.train_dataloader())
         nr_dataloaders = 1
         if stage == 'fit' or stage == 'validate':
