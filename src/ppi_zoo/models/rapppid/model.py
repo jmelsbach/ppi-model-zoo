@@ -473,24 +473,36 @@ class LSTMAWD(L.LightningModule):
         return optimizer
     
     # metrics functions
-    def _update_metrics(self, predictions, targets, metric_modules: list) -> None:
+    def _update_metrics(self, predictions, targets, metric_modules: list):
         metric_module: MetricModule
         for metric_module in metric_modules:
-            metric_module.metric.update(predictions, targets.int()) # todo: we need to find a consistent way in which we process our target tensor (best would be to always have the same format i.e. float())
-    
-    def _log_metrics(self, stage: str) -> None:
+            metric_module.metric.update(predictions, targets.int())
+        
+    def _log_metrics(self, stage: str):
+        self._debug_print(f'Logging metrics for stage: {stage}')
         metric_module: MetricModule
         for metric_module in self._metrics:
             if metric_module.log:
-                metric_module.log(self.logger, metric_module.metric, metric_module.dataloader_idx)
+                metric_module.log(self, metric_module.metric, metric_module.dataloader_idx)
                 continue
             
             key = f'{stage}_{metric_module.name}'
-            if metric_module.dataloader_idx:
-                key = f'{key}_{metric_module.dataloader_idx}'
-            self.log(key, metric_module.metric.compute(), prog_bar=True)
+            
+            if metric_module.dataloader_idx is not None:
+                key = f'{key}_T{metric_module.dataloader_idx + 1}'
 
-    def _reset_metrics(self) -> None:
+            value = metric_module.metric.compute()
+
+            self._debug_print(f'Metric {metric_module.name} scored value of {value} on T{metric_module.dataloader_idx + 1} ')
+            self.log(key, value, sync_dist=True)
+
+    def _reset_metrics(self):
         metric_module: MetricModule
         for metric_module in self._metrics:
             metric_module.metric.reset()
+
+    def _debug_print(self, message):
+        if self.global_rank != 0:
+            return
+        
+        print(message)
