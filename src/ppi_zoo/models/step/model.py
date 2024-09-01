@@ -282,7 +282,7 @@ class STEP(L.LightningModule):
             key = f'{stage}_{metric_module.name}'
             
             if metric_module.dataloader_idx is not None:
-                key = f'{key}_{metric_module.dataloader_idx}'
+                key = f'{key}_T{metric_module.dataloader_idx + 1}'
 
             value = metric_module.metric.compute()
 
