@@ -409,7 +409,7 @@ class LSTMAWD(L.LightningModule):
 
         _, _, train_loss = self._single_step(batch)
 
-        self.log('train_loss', train_loss)
+        self.log('train_loss', train_loss, sync_dist=True)
         
         if self.lr_scaling:
             inputs_A, inputs_B, _ = batch
@@ -429,7 +429,7 @@ class LSTMAWD(L.LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
         targets, predictions, val_loss = self._single_step(batch)
 
-        self.log(f'val_loss', val_loss)
+        self.log(f'val_loss', val_loss, sync_dist=True)
         self._update_metrics(
             predictions,
             targets,
