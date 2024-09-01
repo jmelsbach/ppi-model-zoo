@@ -8,3 +8,6 @@ class MetricModule(nn.Module):
         self.metric = metric
         self.dataloader_idx = dataloader_idx
         self.log = log
+
+    def __str__(self) -> str:
+        return f'Name: {self.name}; Metric: {self.metric}; Dataloader idx: {self.dataloader_idx}; Log: {self.log}'

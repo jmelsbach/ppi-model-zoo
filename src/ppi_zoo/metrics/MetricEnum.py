@@ -11,21 +11,22 @@ from torchmetrics import (
 import ppi_zoo.metrics.loggers as loggers
 
 METRIC_ENUM = {
-    'accuracy': { 'metric': Accuracy(task='binary') },
-    'f1': { 'metric': F1Score(task='binary') },
-    'recall': { 'metric': Recall(task='binary') },
-    'precision': { 'metric': Precision(task='binary') },
-    'auroc': { 'metric': AUROC(task='binary') },
+    'accuracy': { 'build_metric': lambda: Accuracy(task='binary') },
+    'f1': { 'build_metric': lambda: F1Score(task='binary') },
+    'weighted_f1': { 'build_metric': lambda: F1Score(task='binary', average="weighted") },
+    'recall': { 'build_metric': lambda: Recall(task='binary') },
+    'precision': { 'build_metric': lambda: Precision(task='binary') },
+    'auroc': { 'build_metric': lambda: AUROC(task='binary') },
     'confusion_matrix': { 
-        'metric': ConfusionMatrix(task='binary'),
+        'build_metric': lambda: ConfusionMatrix(task='binary'),
         'log': loggers.log_confusion_matrix 
     },
     'precision_recall_curve': {
-        'metric': PrecisionRecallCurve(task='binary'),
+        'build_metric': lambda: PrecisionRecallCurve(task='binary'),
         'log': loggers.log_precision_recall_curve
     },
     'roc_curve': {
-        'metric': ROC(task='binary'),
+        'build_metric': lambda: ROC(task='binary'),
         'log': loggers.log_roc_curve
     }
 }
