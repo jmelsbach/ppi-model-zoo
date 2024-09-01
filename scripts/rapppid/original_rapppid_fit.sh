@@ -58,7 +58,6 @@ args+=( "--data.seqs_path=.data/comparatives/string_c3/seqs.pkl.gz" )
 args+=( "--data.vocab_size= 250" )
 args+=( "--data.model_file=scripts/rapppid/spm.model" )
 args+=( "--data.seed=5353456" )
-args+=( "--model.optimizer_type=ranger21" )
 
 # arguments effected by DEBUG
 if [ "$DEBUG" = true ]; then
