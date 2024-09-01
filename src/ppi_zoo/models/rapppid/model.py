@@ -230,7 +230,7 @@ class LSTMAWD(L.LightningModule):
         trunc_len: int = 1500,
         embedding_droprate: float = 0.3,
         frozen_epochs: int = 0,
-        optimizer_type: str = 'adam' # todo: originally rapppid implements 'ranger21'
+        optimizer_type: str = 'ranger21' 
     ) -> None:
         super().__init__()
 
