@@ -57,8 +57,8 @@ class RapppidDataModule(L.LightningDataModule):
     ):
         super().__init__()
         self.save_hyperparameters() # TODO: dont use save_hyperparameters
-        self.tokenizer = sp.SentencePieceProcessor(model_file=tokenizer_file)
-        self.tokenizer.set_random_generator_seed(5353456) # todo: make this hyperparam
+        sp.set_random_generator_seed(5353456) # todo: make this hyperparam
+        self.tokenizer = sp.SentencePieceProcessor(model_file=tokenizer_file) 
         self.batch_size = batch_size
 
     def setup(self, stage=None):
