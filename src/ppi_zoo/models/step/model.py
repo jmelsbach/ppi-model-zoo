@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
-from ppi_zoo.utils.metric_builder import build_metrics
+from ppi_zoo.utils.metrics import build_metrics, build_metric_log_key
 from ppi_zoo.metrics.MetricModule import MetricModule
 
 # TODO: label encoder? -> low prio
@@ -89,7 +89,8 @@ class STEP(L.LightningModule):
         if stage == 'test' or stage is None:
             nr_dataloaders = len(datamodule.test_dataloader()) if type(datamodule.test_dataloader()) is list else 1
         
-        self._metrics = build_metrics(nr_dataloaders)
+        self.nr_dataloaders = nr_dataloaders
+        self._metrics = build_metrics(self.nr_dataloaders)
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         _, _, train_loss = self._single_step(batch)
@@ -115,7 +116,7 @@ class STEP(L.LightningModule):
         return val_loss
 
     def on_validation_epoch_end(self):
-        self._log_metrics('val')
+        self._log_metrics('validate')
         self._reset_metrics()
 
     def test_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
@@ -275,18 +276,15 @@ class STEP(L.LightningModule):
         self._debug_print(f'Logging metrics for stage: {stage}')
         metric_module: MetricModule
         for metric_module in self._metrics:
+            dataloader_idx = metric_module.dataloader_idx if self.nr_dataloaders > 1 else None # if we only have one dataloader in th current stage then the index is irrelevant
             if metric_module.log:
-                metric_module.log(self, metric_module.metric, metric_module.dataloader_idx)
+                metric_module.log(self, metric_module.metric, dataloader_idx, stage)
                 continue
-            
-            key = f'{stage}_{metric_module.name}'
-            
-            if metric_module.dataloader_idx is not None:
-                key = f'{key}_{metric_module.dataloader_idx}'
 
+            key = build_metric_log_key(metric_module.name, dataloader_idx, stage)
             value = metric_module.metric.compute()
 
-            self._debug_print(f'Metric {metric_module.name} scored value of {value} on T{metric_module.dataloader_idx + 1} ')
+            self._debug_print(f'Metric {key} scored value of {value}')
             self.log(key, value, sync_dist=True)
 
     def _reset_metrics(self):
