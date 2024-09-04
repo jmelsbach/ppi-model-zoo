@@ -39,7 +39,7 @@ else
 fi
 
 args=()
-
+# todo: clean this up
 args+=( "--trainer.precision=16-mixed" ) # ? 
 args+=( "--trainer.strategy=ddp_find_unused_parameters_true" ) # todo: warning: Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
 args+=( "--trainer.callbacks+=StochasticWeightAveraging" )
@@ -51,7 +51,7 @@ args+=( "--data.data_dir=.data" )
 args+=( "--data.file_name=benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" )
 args+=( "--model.optimizer_type=ranger21" )
 
-args+=( "--ckpt_path=./protein-rapppid/xar98u5w/checkpoints/epoch=2-step=825.ckpt")
+args+=( "--ckpt_path=rapppid_checkpoints/rapppid-epoch=94-val_f1_T1=0.71.ckpt")
 
 # arguments effected by DEBUG
 if [ "$DEBUG" = true ]; then

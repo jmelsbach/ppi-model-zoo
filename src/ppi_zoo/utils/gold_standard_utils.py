@@ -4,7 +4,7 @@ import random
 
 def create_test_split(dataset: pd.DataFrame, protein_hubs: list, test_protein_rate: float = 0.07, complete_overlap_rate: float = 0.05, seed: int = 864) -> tuple:
     random.seed(seed)
-
+    # todo(diego): comment and explain 
     all_prot_ids = dataset['uniprotID_A'].unique(
     ).tolist() + dataset['uniprotID_B'].unique().tolist()
     hubs = sorted(list(set(protein_hubs) & set(all_prot_ids)))
