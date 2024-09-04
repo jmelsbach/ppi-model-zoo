@@ -55,6 +55,7 @@ def log_precision_recall_curve(module: LightningModule, precision_recall_curve: 
         return
     
     fig, ax = precision_recall_curve.plot(score=True)
+    ax.set_ylim(0, 1)
     
     pr_curve_filename = os.path.join(log_dir, f'{metric_util.build_metric_log_key('precision_recall_curve', dataloader_idx, stage)}.png')
     fig.savefig(pr_curve_filename)
@@ -80,7 +81,8 @@ def log_roc_curve(module: LightningModule, roc_curve: ROC, dataloader_idx: int, 
         return
     
     fig, ax = roc_curve.plot(score=True)
-    
+    ax.set_ylim(0, 1)
+
     roc_curve_filename = os.path.join(log_dir, f'{metric_util.build_metric_log_key('roc_curve', dataloader_idx, stage)}.png')
     fig.savefig(roc_curve_filename)
     plt.close(fig)  # Close the figure to avoid memory issues
