@@ -56,7 +56,7 @@ args+=( "--data.val_path=.data/comparatives/string_c3/val_pairs.pkl.gz" )
 args+=( "--data.test_path=.data/comparatives/string_c3/test_pairs.pkl.gz" )
 args+=( "--data.seqs_path=.data/comparatives/string_c3/seqs.pkl.gz" )
 args+=( "--data.vocab_size= 250" )
-args+=( "--data.model_file=scripts/rapppid/spm.model" )
+args+=( "--data.model_file=.data/spm.model" )
 args+=( "--data.seed=5353456" )
 
 # arguments effected by DEBUG

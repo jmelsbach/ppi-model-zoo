@@ -177,4 +177,4 @@ protein
 protein-rapppid
 
 # temporal
-scripts/rapppid/spm.model
+.data/spm.model

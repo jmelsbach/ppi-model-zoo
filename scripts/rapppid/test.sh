@@ -46,7 +46,7 @@ args+=( "--trainer.callbacks+=StochasticWeightAveraging" )
 args+=( "--trainer.callbacks.swa_lrs=0.05" ) # TODO: what lr should we use here? Should be lower than lr of optimizer
 args+=( "--data.batch_size=80" )
 args+=( "--data.truncate_len=1500" )
-args+=( "--data.tokenizer_file=scripts/rapppid/spm.model" )
+args+=( "--data.tokenizer_file=.data/spm.model" )
 args+=( "--data.data_dir=.data" )
 args+=( "--data.file_name=benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" )
 args+=( "--model.optimizer_type=ranger21" )
