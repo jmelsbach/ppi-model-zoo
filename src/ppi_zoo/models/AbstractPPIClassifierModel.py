@@ -39,7 +39,6 @@ class AbstractPPIClassifierModel(L.LightningModule):
         return {'outputs': predictions, 'labels': labels}
 
     def test_epoch_end(self, outputs):
-        print("-------------------------DANK-----------------------")
         # Compute final metric values
         self.test_results['auroc'] = self._auroc.compute()
         self.test_results['f1'] = self._f1.compute()

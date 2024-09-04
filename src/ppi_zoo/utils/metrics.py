@@ -20,9 +20,8 @@ def build_metrics(nr_dataloaders: int) -> nn.ModuleList:
     for key, value in METRIC_ENUM.items():
         build_metric = value.get('build_metric')
         log = value.get('log')
-        print("nr dl", nr_dataloaders)
+
         for dataloader_idx in range(0, nr_dataloaders):
-            print("dank", dataloader_idx if nr_dataloaders != 1 else None)
             metrics_list.append(
                 MetricModule(
                     name=key,
