@@ -40,14 +40,14 @@ class GoldStandardPPILightningModule(L.LightningModule):
         )
         return targets, predictions, loss
 
-    def training_step(self, batch: torch.Tensor) -> torch.Tensor:
+    def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         _, _, train_loss = self._single_step(batch)
 
         self.log('train_loss', train_loss, sync_dist=True)
 
         return train_loss
 
-    def validation_step(self, batch: torch.Tensor, dataloader_idx: int = 0) -> torch.Tensor:
+    def validation_step(self, batch: torch.Tensor, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         targets, predictions, val_loss = self._single_step(batch)
 
         self.log(f'validate_loss', val_loss, sync_dist=True)
