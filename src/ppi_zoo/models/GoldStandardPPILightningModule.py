@@ -21,8 +21,7 @@ class GoldStandardPPILightningModule(L.LightningModule):
         if stage == 'test' or stage is None:
             nr_dataloaders = len(datamodule.test_dataloader()) if type(datamodule.test_dataloader()) is list else 1
         
-        self.nr_dataloaders: int = nr_dataloaders
-        self._metrics: List[MetricModule] = build_metrics(self.nr_dataloaders)
+        self._metrics: List[MetricModule] = build_metrics(nr_dataloaders)
 
     def _build_model():
         raise NotImplementedError
@@ -46,7 +45,7 @@ class GoldStandardPPILightningModule(L.LightningModule):
 
         return train_loss
 
-    def validation_step(self, batch: torch.Tensor, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
+    def validation_step(self, batch: torch.Tensor, batch_idx: int, dataloader_idx: int = None) -> torch.Tensor:
         targets, predictions, val_loss = self._single_step(batch)
 
         self.log(f'validate_loss', val_loss, sync_dist=True)
@@ -62,7 +61,7 @@ class GoldStandardPPILightningModule(L.LightningModule):
         self._log_metrics('validate')
         self._reset_metrics()
 
-    def test_step(self, batch: torch.Tensor, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
+    def test_step(self, batch: torch.Tensor, batch_idx: int, dataloader_idx: int = None) -> torch.Tensor:
         targets, predictions, test_loss = self._single_step(batch)
 
         self.log(f'test_loss', test_loss, sync_dist=True)
@@ -85,12 +84,11 @@ class GoldStandardPPILightningModule(L.LightningModule):
     def _log_metrics(self, stage: str):
         self._debug_print(f'Logging metrics for stage: {stage}')
         for metric_module in self._metrics:
-            dataloader_idx: int = metric_module.dataloader_idx if self.nr_dataloaders > 1 else None # TODO: if nr_dataloaders is 1 then dataloader_idx for all metrics should be None -> change default value of dataloader_idx in training_step etc.
             if metric_module.log:
-                metric_module.log(self, metric_module.metric, dataloader_idx, stage)
+                metric_module.log(self, metric_module.metric, metric_module.dataloader_idx, stage)
                 continue
 
-            key = build_metric_log_key(metric_module.name, dataloader_idx, stage)
+            key = build_metric_log_key(metric_module.name, metric_module.dataloader_idx, stage)
             value = metric_module.metric.compute()
 
             self._debug_print(f'Metric {key} scored value of {value}')

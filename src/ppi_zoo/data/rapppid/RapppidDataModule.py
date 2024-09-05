@@ -9,6 +9,7 @@ class RapppidDataModule(GoldStandardDataModule):
         use_sentence_processor: bool = True,
         use_padding: bool = True,
         truncate_len: int = None,
+        random_seed: int = 5353456,
         *args,
         **kwargs
     ) -> None:
@@ -16,7 +17,8 @@ class RapppidDataModule(GoldStandardDataModule):
         self.use_sentence_processor = use_sentence_processor
         self.use_padding = use_padding
         self.truncate_len = truncate_len
-        sp.set_random_generator_seed(5353456) # todo: make this hyperparam
+
+        sp.set_random_generator_seed(random_seed)
         self.tokenizer = sp.SentencePieceProcessor(model_file=tokenizer_file) 
         
     def transform_sequence(self, sequence: str) -> dict:

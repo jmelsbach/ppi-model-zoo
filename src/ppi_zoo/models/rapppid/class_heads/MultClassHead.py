@@ -32,6 +32,6 @@ class MultClassHead(nn.Module):
         z = z_a * z_b 
 
         z = self.nl(z)
-        z = self.fc(z) # todo: check if we apply sigmoid here? -> is that maybe done by the 
+        z = self.fc(z)
 
         return z

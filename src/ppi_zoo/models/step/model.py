@@ -6,10 +6,7 @@ from collections import OrderedDict
 from typing import List
 from ppi_zoo.models.GoldStandardPPILightningModule import GoldStandardPPILightningModule
 
-# TODO: label encoder? -> low prio
 # TODO: predict methods -> low prio
-# TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet -> low prio
-# TODO: move metrics functionality to super class or use callback
 
 class STEP(GoldStandardPPILightningModule):
     def __init__(

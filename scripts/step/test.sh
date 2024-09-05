@@ -34,7 +34,6 @@ args=()
 
 # standard arguments
 args+=( "--trainer.precision=16-mixed" )
-args+=( "--trainer.strategy=ddp_find_unused_parameters_true" )
 args+=( "--data.data_dir=.data" )
 args+=( "--data.file_name=benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv" )
 args+=( "--data.batch_size=16" )
