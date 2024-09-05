@@ -32,11 +32,10 @@ class GoldStandardPPILightningModule(L.LightningModule):
     
     def _single_step(self, batch:list) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         seq_A, seq_B, targets = batch
-        targets = targets.unsqueeze(-1).float()
         predictions = self.forward(seq_A, seq_B)
         loss = self.loss_function(
             predictions,
-            targets
+            targets.float()
         )
         return targets, predictions, loss
 
@@ -81,7 +80,7 @@ class GoldStandardPPILightningModule(L.LightningModule):
 
     def _update_metrics(self, predictions: torch.Tensor, targets: torch.Tensor, metric_modules: List[MetricModule]):
         for metric_module in metric_modules:
-            metric_module.metric.update(predictions, targets.int())
+            metric_module.metric.update(predictions, targets)
 
     def _log_metrics(self, stage: str):
         self._debug_print(f'Logging metrics for stage: {stage}')

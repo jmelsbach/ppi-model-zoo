@@ -79,7 +79,7 @@ class LSTMAWD(GoldStandardPPILightningModule):
         z_a = self._reduce(seq_A) 
         z_b = self._reduce(seq_B)
         
-        return self.class_head(z_a, z_b).float()
+        return self.class_head(z_a, z_b).squeeze(-1)
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         if self.lr_scaling:

@@ -1,19 +1,17 @@
 import torch
-import lightning.pytorch as L
 from torch import nn
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
-from ppi_zoo.utils.metrics import build_metrics, build_metric_log_key
-from ppi_zoo.metrics.MetricModule import MetricModule
+from ppi_zoo.models.GoldStandardPPILightningModule import GoldStandardPPILightningModule
 
 # TODO: label encoder? -> low prio
 # TODO: predict methods -> low prio
 # TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet -> low prio
 # TODO: move metrics functionality to super class or use callback
 
-class STEP(L.LightningModule):
+class STEP(GoldStandardPPILightningModule):
     def __init__(
         self,
         learning_rate: float = 0.000429331,
@@ -80,60 +78,9 @@ class STEP(L.LightningModule):
 
         self.loss_function = nn.BCEWithLogitsLoss()
 
-    def setup(self, stage=None):
-        datamodule = self.trainer.datamodule
-        nr_dataloaders = 1
-        if stage == 'fit' or stage == 'validate':
-            nr_dataloaders = len(datamodule.val_dataloader()) if type(datamodule.val_dataloader()) is list else 1
-            
-        if stage == 'test' or stage is None:
-            nr_dataloaders = len(datamodule.test_dataloader()) if type(datamodule.test_dataloader()) is list else 1
-        
-        self.nr_dataloaders = nr_dataloaders
-        self._metrics = build_metrics(self.nr_dataloaders)
-
-    def training_step(self, batch, batch_idx) -> torch.Tensor:
-        _, _, train_loss = self._single_step(batch)
-        self.log('train_loss', train_loss, sync_dist=True)
-        self.log('frozen', self._frozen, sync_dist=True)
-
-        return train_loss
-
     def on_train_epoch_end(self) -> None:
         if self.current_epoch + 1 > self.nr_frozen_epochs:
             self._unfreeze_encoder()
-
-    def validation_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
-        targets, predictions, val_loss = self._single_step(batch)
-
-        self.log(f'val_loss', val_loss, sync_dist=True)
-        self._update_metrics(
-            predictions,
-            targets,
-            filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
-        )
-
-        return val_loss
-
-    def on_validation_epoch_end(self):
-        self._log_metrics('validate')
-        self._reset_metrics()
-
-    def test_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
-        targets, predictions, test_loss = self._single_step(batch)
-
-        self.log(f'test_loss', test_loss, sync_dist=True)
-        self._update_metrics(
-            predictions,
-            targets,
-            filter(lambda metric: metric.dataloader_idx == dataloader_idx, self._metrics)
-        )
-
-        return test_loss
-
-    def on_test_epoch_end(self):
-        self._log_metrics('test')
-        self._reset_metrics()
 
     def configure_optimizers(self) -> tuple:
         """
@@ -235,62 +182,10 @@ class STEP(L.LightningModule):
             ("dense3", nn.Linear(int(self.total_encoder_features / (16*16)), 1)),
         ]))
 
-    def _single_step(self, batch) -> tuple:
-        inputs_A, inputs_B, targets = batch
-        predictions = self.forward(inputs_A, inputs_B)
-        loss = self.loss_function(
-            predictions,
-            targets.float()
-        )
-        return targets, predictions, loss
-
     def _compute_embedding(self, inputs) -> torch.Tensor:
         embeddings = self.ProtBertBFD(  # embeddings.shape = torch.Size([8, 8, 1024])
             inputs['input_ids'], inputs['attention_mask'])[0]  # returns the last_hidden_state of the model whereby [1] would return the pooler_output
         return embeddings
-        # inputs['input_ids'] = tokenized sequence with shape torch.Size([8, 8]) -> 8 sequences with 8 tokens each
-        # tensor([[2, 1, 3, 0, 0, 0, 0, 0], note: 2 is the start token, 1 is the sequence token, 3 is the end token, 0 is the padding token
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0]], device='cuda:0')
-
-        # inputs['attention_mask'] = tensor([[2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0]], device='cuda:0')}
-
-    def _update_metrics(self, predictions, targets, metric_modules: list):
-        metric_module: MetricModule
-        for metric_module in metric_modules:
-            metric_module.metric.update(predictions, targets)
-        
-    def _log_metrics(self, stage: str):
-        self._debug_print(f'Logging metrics for stage: {stage}')
-        metric_module: MetricModule
-        for metric_module in self._metrics:
-            dataloader_idx = metric_module.dataloader_idx if self.nr_dataloaders > 1 else None # if we only have one dataloader in th current stage then the index is irrelevant
-            if metric_module.log:
-                metric_module.log(self, metric_module.metric, dataloader_idx, stage)
-                continue
-
-            key = build_metric_log_key(metric_module.name, dataloader_idx, stage)
-            value = metric_module.metric.compute()
-
-            self._debug_print(f'Metric {key} scored value of {value}')
-            self.log(key, value, sync_dist=True)
-
-    def _reset_metrics(self):
-        metric_module: MetricModule
-        for metric_module in self._metrics:
-            metric_module.metric.reset()
 
     def _freeze_encoder(self) -> None:
         """ freezes the encoder layer. """
@@ -385,9 +280,3 @@ class STEP(L.LightningModule):
         num_steps = dataset_size * self.trainer.max_epochs
 
         return num_steps
-    
-    def _debug_print(self, message):
-        if self.global_rank != 0:
-            return
-        
-        print(message)
