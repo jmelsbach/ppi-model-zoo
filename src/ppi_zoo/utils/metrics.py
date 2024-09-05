@@ -26,7 +26,7 @@ def build_metrics(nr_dataloaders: int) -> nn.ModuleList:
                 MetricModule(
                     name=key,
                     metric=build_metric(),
-                    dataloader_idx=dataloader_idx,
+                    dataloader_idx=dataloader_idx if nr_dataloaders > 1 else None,
                     log=log
                 )
             )
