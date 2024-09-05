@@ -90,7 +90,7 @@ class LSTMAWD(GoldStandardPPILightningModule):
         else:
             self.rnn_dp.requires_grad_(True)
 
-        _, _, train_loss = self._single_step(batch)
+        train_loss = super().training_step(batch, batch_idx)
         
         if self.lr_scaling:
             inputs_A, inputs_B, _ = batch
