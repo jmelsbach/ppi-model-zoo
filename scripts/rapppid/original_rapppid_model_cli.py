@@ -1,5 +1,5 @@
 from lightning.pytorch.cli import LightningCLI
-from ppi_zoo.datasets.OriginalRapppidDataset import OriginalRapppidDataModule
+from ppi_zoo.data.rapppid.OriginalRapppidDataset import OriginalRapppidDataModule
 from ppi_zoo.models.rapppid.model import LSTMAWD
 from lightning.pytorch.loggers import WandbLogger
 import lightning.pytorch as L
