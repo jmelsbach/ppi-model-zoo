@@ -65,18 +65,28 @@ class GoldStandardDataModule(L.LightningDataModule):
         train_indices = train_df.index
         val_indices = val_df.index
 
-        test1_indices = df.index[
-            dataset.data['trainTest'] == 'test1'
-        ].tolist()
-
-        test2_indices = df.index[
-            dataset.data['trainTest'] == 'test2'
-        ].tolist()
-
         self.train_dataset = torch.utils.data.Subset(dataset, train_indices[0:self.limit])
         self.val_dataset = torch.utils.data.Subset(dataset, val_indices[0:self.limit])
-        self.test1_dataset = torch.utils.data.Subset(dataset, test1_indices[0:self.limit])
-        self.test2_dataset = torch.utils.data.Subset(dataset, test2_indices[0:self.limit])
+
+        train_test_labels = dataset.data['trainTest'].unique()
+
+        if 'test' in train_test_labels:
+            test_indices = df.index[
+                dataset.data['trainTest'] == 'test'
+            ].tolist()
+            self.test_dataset = torch.utils.data.Subset(dataset, test_indices[0:self.limit])
+
+        if 'test1' in train_test_labels:
+            test1_indices = df.index[
+                dataset.data['trainTest'] == 'test1'
+            ].tolist()
+            self.test1_dataset = torch.utils.data.Subset(dataset, test1_indices[0:self.limit])
+
+        if 'test2' in train_test_labels:
+            test2_indices = df.index[
+                dataset.data['trainTest'] == 'test2'
+            ].tolist()
+            self.test2_dataset = torch.utils.data.Subset(dataset, test2_indices[0:self.limit])
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
@@ -85,9 +95,25 @@ class GoldStandardDataModule(L.LightningDataModule):
         return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
 
     def test_dataloader(self):
+        if hasattr(self, 'test_dataset'):
+            return DataLoader(
+                self.test_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers
+            )
+        
         return [
-            DataLoader(self.test1_dataset, batch_size=self.batch_size,
-                       shuffle=False, num_workers=self.num_workers),
-            DataLoader(self.test2_dataset, batch_size=self.batch_size,
-                       shuffle=False, num_workers=self.num_workers),
+            DataLoader(
+                self.test1_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers
+            ),
+            DataLoader(
+                self.test2_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers
+            ),
         ]

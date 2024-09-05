@@ -16,11 +16,11 @@ def get_dataset_balance(module: LightningModule, dataloader_idx: int, stage: str
     datamodule: L.LightningDataModule = module.trainer.datamodule
     dataloader: DataLoader = None
     if stage == 'test':
-        dataloader = datamodule.test_dataloader()[dataloader_idx] if type(datamodule.test_dataloader()) else datamodule.test_dataloader()
+        dataloader = datamodule.test_dataloader()[dataloader_idx] if type(datamodule.test_dataloader()) is list else datamodule.test_dataloader()
     elif stage == 'fit':
-        dataloader = datamodule.train_dataloader()[dataloader_idx] if type(datamodule.train_dataloader()) else datamodule.train_dataloader()
+        dataloader = datamodule.train_dataloader()[dataloader_idx] if type(datamodule.train_dataloader()) is list else datamodule.train_dataloader()
     elif stage == 'validate':
-        dataloader = datamodule.val_dataloader()[dataloader_idx] if type(datamodule.val_dataloader()) else datamodule.val_dataloader()
+        dataloader = datamodule.val_dataloader()[dataloader_idx] if type(datamodule.val_dataloader()) is list else datamodule.val_dataloader()
 
     pos_count: int = 0
     neg_count: int = 0
