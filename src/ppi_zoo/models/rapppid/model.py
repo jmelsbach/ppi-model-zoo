@@ -38,6 +38,7 @@ class LSTMAWD(GoldStandardPPILightningModule):
     ) -> None:
         super().__init__()
 
+        self.name = "RAPPPID"
         # Save hyperparameters
         self.save_hyperparameters()
         

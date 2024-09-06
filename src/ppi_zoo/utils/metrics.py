@@ -9,6 +9,12 @@ LOG_KEYS = {
     'test': 'T'
 }
 
+def build_metric_title(name, dataloader_idx, stage):
+    if dataloader_idx is None:
+        return name
+    
+    return f'{name} {LOG_KEYS[stage]}{dataloader_idx + 1}'
+
 def build_metric_log_key(name, dataloader_idx, stage):
     if dataloader_idx is None:
         return f'{stage}_{name}'

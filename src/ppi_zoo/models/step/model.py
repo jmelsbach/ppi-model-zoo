@@ -48,6 +48,7 @@ class STEP(GoldStandardPPILightningModule):
         """
 
         super().__init__()
+        self.name = "STEP"
         self.learning_rate = learning_rate
         self.nr_frozen_epochs = nr_frozen_epochs
         self.dropout_rates = dropout_rates
