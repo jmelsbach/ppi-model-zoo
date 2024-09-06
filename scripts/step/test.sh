@@ -39,7 +39,7 @@ args+=( "--data.file_name=benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.cs
 args+=( "--data.batch_size=16" )
 args+=( "--data.tokenizer=Rostlab/prot_bert_bfd" )
 
-args+=( "--ckpt_path=./protein/smxuznts/checkpoints/epoch=9-step=219840.ckpt")
+args+=( "--ckpt_path=./protein/smxuznts/checkpoints/step_epoch_9.ckpt")
 
 # arguments effected by DEBUG
 if [ "$DEBUG" = true ]; then
