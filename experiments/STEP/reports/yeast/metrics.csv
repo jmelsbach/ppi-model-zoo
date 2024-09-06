@@ -1,0 +1,2 @@
+epoch,step,test_accuracy,test_auprc,test_auroc,test_f1,test_false_negatives,test_false_positives,test_loss,test_precision,test_recall,test_true_negatives,test_true_positives,test_weighted_f1
+0,0,0.6190550923347473,0.6701205372810364,0.6779221296310425,0.6700763702392578,2875.0,6801.0,0.6998796463012695,0.590966522693634,0.7736398577690125,5898.0,9826.0,0.6700763702392578

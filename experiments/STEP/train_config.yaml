@@ -1,0 +1,69 @@
+# lightning.pytorch==2.2.5
+seed_everything: 0
+trainer:
+  accelerator: auto
+  strategy: auto
+  devices: auto
+  num_nodes: 1
+  precision: 16-mixed
+  logger: null
+  callbacks: null
+  fast_dev_run: false
+  max_epochs: 10
+  min_epochs: null
+  max_steps: -1
+  min_steps: null
+  max_time: null
+  limit_train_batches: null
+  limit_val_batches: null
+  limit_test_batches: null
+  limit_predict_batches: null
+  overfit_batches: 0.0
+  val_check_interval: null
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: null
+  log_every_n_steps: null
+  enable_checkpointing: null
+  enable_progress_bar: null
+  enable_model_summary: null
+  accumulate_grad_batches: 1
+  gradient_clip_val: null
+  gradient_clip_algorithm: null
+  deterministic: null
+  benchmark: null
+  inference_mode: true
+  use_distributed_sampler: true
+  profiler: null
+  detect_anomaly: false
+  barebones: false
+  plugins: null
+  sync_batchnorm: false
+  reload_dataloaders_every_n_epochs: 0
+  default_root_dir: null
+model:
+  learning_rate: 0.000429331
+  nr_frozen_epochs: 4
+  dropout_rates:
+  - 0.4
+  - 0.2
+  - 0.2
+  encoder_features: 1024
+  model_name: Rostlab/prot_bert_bfd
+  pool_cls: true
+  pool_max: true
+  pool_mean: true
+  pool_mean_sqrt: true
+  weight_decay: 6.34672e-07
+  adam_epsilon: 5.90539e-08
+  warmup_steps: 200
+  encoder_learning_rate: 5.0e-06
+data:
+  tokenizer: Rostlab/prot_bert_bfd
+  max_len: 1536
+  data_dir: .data
+  file_name: benchmarkingGS_v1-0_similarityMeasure_sequence_v3-1.csv
+  batch_size: 2
+  num_workers: 4
+  with_validation: true
+  limit: null
+ckpt_path: null
