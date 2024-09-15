@@ -38,7 +38,7 @@ python -m pip install git+https://github.com/jmelsbach/ppi-model-zoo.git
 
 ### Get the Data
 
-All the necessary datasets can be downloaded here: 
+All the necessary datasets can be downloaded here: https://drive.google.com/drive/folders/15dWIpmf1HAI2uCbe7AfCIUWQrVOCKPyq?usp=sharing
 
 ### Benchmark your own model
 
@@ -106,7 +106,8 @@ To compare the results of your model to already benchmarked models you can simpl
 
 ### Access our pretrained models
 
-The checkpoints of all pretrained models can be found here: . Simply download the checkpoint and pass the `ckpt_path` argument to your LightningCLI to test or predict with the model (see `scripts/step/test.sh` for an example).
+The checkpoints of all pretrained models can be found here: https://drive.google.com/drive/folders/1brcWV8j7VR0a3Kh7TlsO8XJJfCg6VeW3?usp=sharing.
+Simply download the checkpoint and pass the `ckpt_path` argument to your LightningCLI to test or predict with the model (see `scripts/step/test.sh` for an example).
 
 ## How to contribute
 
