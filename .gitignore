@@ -162,6 +162,9 @@ cython_debug/
 # data files
 .data/*.csv
 .data/*.pkl
+.data/comparatives
+rapppid_checkpoints
+# todo: .data/comparatives can be deleted (rapppid)
 
 # lightning logs
 lightning_logs/
@@ -171,3 +174,7 @@ config.yaml
 
 # trained models
 protein
+protein-rapppid
+
+# temporal
+.data/spm.model

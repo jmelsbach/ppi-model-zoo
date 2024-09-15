@@ -1,23 +1,14 @@
 import torch
-import lightning.pytorch as L
 from torch import nn
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import AutoModel, AutoTokenizer, BertConfig
 from collections import OrderedDict
 from typing import List
-from torchmetrics import (
-    AUROC,
-    F1Score,
-    Precision,
-    Recall,
-)
+from ppi_zoo.models.GoldStandardPPILightningModule import GoldStandardPPILightningModule
 
-# TODO: label encoder? -> low prio
 # TODO: predict methods -> low prio
-# TODO: hyperparameter welcher steuert ob man Adam oder AdamW verwendet -> low prio
-# TODO: move metrics functionality to super class or use callback
 
-class STEP(L.LightningModule):
+class STEP(GoldStandardPPILightningModule):
     def __init__(
         self,
         learning_rate: float = 0.000429331,
@@ -32,7 +23,7 @@ class STEP(L.LightningModule):
         weight_decay: float = 6.34672e-07,
         adam_epsilon: float = 5.90539e-08,
         warmup_steps: int = 200,
-        encoder_learning_rate: float = 5e-06
+        encoder_learning_rate: float = 5e-06,
     ) -> None:
         """
         Siamese Tailored deep sequence Embedding of Proteins (STEP) model
@@ -57,6 +48,7 @@ class STEP(L.LightningModule):
         """
 
         super().__init__()
+        self.name = "STEP"
         self.learning_rate = learning_rate
         self.nr_frozen_epochs = nr_frozen_epochs
         self.dropout_rates = dropout_rates
@@ -84,47 +76,9 @@ class STEP(L.LightningModule):
 
         self.loss_function = nn.BCEWithLogitsLoss()
 
-        # Define metrics -> task='binary' ensures that sigmoid function is applied on prediction of values not in [0,1]. Check: https://lightning.ai/docs/torchmetrics/stable/classification/auroc.html# 
-        # [TODO] ensure that sigmoid is also applied when prediction is in [0,1]
-        self._auroc = AUROC(task='binary')
-        self._f1 = F1Score(task='binary')
-        self._precision = Precision(task='binary')
-        self._recall = Recall(task='binary')
-
-    def training_step(self, batch, batch_idx) -> torch.Tensor:
-        _, _, train_loss = self._single_step(batch)
-        self.log('train_loss', train_loss)
-        self.log('frozen', self._frozen)
-
-        return train_loss
-
     def on_train_epoch_end(self) -> None:
         if self.current_epoch + 1 > self.nr_frozen_epochs:
             self._unfreeze_encoder()
-
-    def validation_step(self, batch, batch_idx) -> torch.Tensor:
-        targets, predictions, val_loss = self._single_step(batch)
-
-        self.log(f'val_loss', val_loss)
-        self._update_metrics(predictions, targets)
-
-        return val_loss
-
-    def on_validation_epoch_end(self):
-        self._log_metrics('val')
-        self._reset_metrics()
-
-    def test_step(self, batch, batch_idx, dataloader_idx=0) -> torch.Tensor:
-        targets, predictions, test_loss = self._single_step(batch)
-
-        self.log(f'test_loss', test_loss)
-        self._update_metrics(predictions, targets)
-
-        return test_loss
-
-    def on_test_epoch_end(self, dataloader_idx):
-        self._log_metrics(f'test_{dataloader_idx}')
-        self._reset_metrics()
 
     def configure_optimizers(self) -> tuple:
         """
@@ -226,55 +180,10 @@ class STEP(L.LightningModule):
             ("dense3", nn.Linear(int(self.total_encoder_features / (16*16)), 1)),
         ]))
 
-    def _single_step(self, batch) -> tuple:
-        inputs_A, inputs_B, targets = batch
-        predictions = self.forward(inputs_A, inputs_B)
-        loss = self.loss_function(
-            predictions,
-            targets.float()
-        )
-        return targets, predictions, loss
-
     def _compute_embedding(self, inputs) -> torch.Tensor:
         embeddings = self.ProtBertBFD(  # embeddings.shape = torch.Size([8, 8, 1024])
             inputs['input_ids'], inputs['attention_mask'])[0]  # returns the last_hidden_state of the model whereby [1] would return the pooler_output
         return embeddings
-        # inputs['input_ids'] = tokenized sequence with shape torch.Size([8, 8]) -> 8 sequences with 8 tokens each
-        # tensor([[2, 1, 3, 0, 0, 0, 0, 0], note: 2 is the start token, 1 is the sequence token, 3 is the end token, 0 is the padding token
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0]], device='cuda:0')
-
-        # inputs['attention_mask'] = tensor([[2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0],
-        # [2, 1, 3, 0, 0, 0, 0, 0]], device='cuda:0')}
-
-    def _update_metrics(self, predictions, targets):
-        self._auroc.update(predictions, targets)
-        self._f1.update(predictions, targets)
-        self._precision.update(predictions, targets)
-        self._recall.update(predictions, targets)
-
-    def _log_metrics(self, key: str):
-        self.log(f'{key}_auroc', self._auroc.compute())
-        self.log(f'{key}_f1', self._f1.compute())
-        self.log(f'{key}_precision', self._precision.compute())
-        self.log(f'{key}_recall', self._recall.compute())
-
-    def _reset_metrics(self):
-        self._auroc.reset()
-        self._f1.reset()
-        self._precision.reset()
-        self._recall.reset()
 
     def _freeze_encoder(self) -> None:
         """ freezes the encoder layer. """
