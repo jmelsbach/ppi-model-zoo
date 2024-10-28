@@ -69,7 +69,7 @@ def log_confusion_matrix(module: LightningModule, confusion_matrix: ConfusionMat
         sync_dist=True
     )
     
-    cm_filename = os.path.join(log_dir, f'{metric_util.build_metric_log_key('confusion_matrix', dataloader_idx, stage)}.png')
+    cm_filename = os.path.join(log_dir, f'{metric_util.build_metric_log_key("confusion_matrix", dataloader_idx, stage)}.png')
     fig.savefig(cm_filename)
     plt.close(fig)  # Close the figure to avoid memory issues
 
