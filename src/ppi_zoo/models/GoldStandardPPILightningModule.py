@@ -56,6 +56,11 @@ class GoldStandardPPILightningModule(L.LightningModule):
         )
 
         return val_loss
+    
+    def predict_step(self, batch: list) -> torch.Tensor:
+        seq_A, seq_B = batch
+        predictions = self.forward(seq_A, seq_B) 
+        return predictions
 
     def on_validation_epoch_end(self):
         self._log_metrics('validate')
