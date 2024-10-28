@@ -15,7 +15,7 @@ def tokenize(
         tokens = sequence[:truncate_len]
 
         if use_sentence_processor:
-            tokens = np.array(tokenizer.encode(tokens, enable_sampling=True, alpha=0.1, nbest_size=-1))
+            tokens = np.array(tokenizer.encode(tokens, enable_sampling=False, alpha=0.1, nbest_size=-1))
         if use_padding:
             pad_len = truncate_len - len(tokens)
             tokens = np.pad(tokens, (0, pad_len), 'constant')
