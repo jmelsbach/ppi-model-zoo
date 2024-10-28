@@ -108,7 +108,7 @@ def log_precision_recall_curve(module: LightningModule, precision_recall_curve: 
     # Show the plot
     plt.tight_layout()
 
-    pr_curve_filename = os.path.join(log_dir, f'{metric_util.build_metric_log_key('precision_recall_curve', dataloader_idx, stage)}.png')
+    pr_curve_filename = os.path.join(log_dir, f'{metric_util.build_metric_log_key("precision_recall_curve", dataloader_idx, stage)}.png')
     fig.savefig(pr_curve_filename)
     plt.close(fig)  # Close the figure to avoid memory issues
     
@@ -121,7 +121,7 @@ def log_precision_recall_curve(module: LightningModule, precision_recall_curve: 
         })
 
     df = pd.DataFrame(data)
-    df.to_csv(f'{log_dir}/{metric_util.build_metric_log_key('precision_recall_curve_data', dataloader_idx, stage)}.csv', index=False)
+    df.to_csv(f'{log_dir}/{metric_util.build_metric_log_key("precision_recall_curve_data", dataloader_idx, stage)}.csv', index=False)
 
 def log_roc_curve(module: LightningModule, roc_curve: ROC, dataloader_idx: int, stage: str):
     log_dir = module.logger.log_dir
@@ -152,7 +152,7 @@ def log_roc_curve(module: LightningModule, roc_curve: ROC, dataloader_idx: int, 
     # Show the plot
     plt.tight_layout()
 
-    roc_curve_filename = os.path.join(log_dir, f'{metric_util.build_metric_log_key('roc_curve', dataloader_idx, stage)}.png')
+    roc_curve_filename = os.path.join(log_dir, f'{metric_util.build_metric_log_key("roc_curve", dataloader_idx, stage)}.png')
     fig.savefig(roc_curve_filename)
     plt.close(fig)  # Close the figure to avoid memory issues
 
@@ -165,4 +165,4 @@ def log_roc_curve(module: LightningModule, roc_curve: ROC, dataloader_idx: int, 
         })
 
     df = pd.DataFrame(data)
-    df.to_csv(f'{log_dir}/{metric_util.build_metric_log_key('roc_curve_data', dataloader_idx, stage)}.csv', index=False)
+    df.to_csv(f'{log_dir}/{metric_util.build_metric_log_key("roc_curve_data", dataloader_idx, stage)}.csv', index=False)
