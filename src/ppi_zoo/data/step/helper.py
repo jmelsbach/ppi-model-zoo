@@ -15,8 +15,8 @@ def tokenize(sequence: str, model: str, max_len: int = 1536):
         truncation=True,
         return_tensors="pt",
     )
-    tokens["input_ids"] = tokens["input_ids"].squeeze()
-    tokens["attention_mask"] = tokens["attention_mask"].squeeze()
-    tokens["token_type_ids"] = tokens["token_type_ids"].squeeze()
+    tokens["input_ids"] = tokens["input_ids"]
+    tokens["attention_mask"] = tokens["attention_mask"]
+    tokens["token_type_ids"] = tokens["token_type_ids"]
 
     return tokens
